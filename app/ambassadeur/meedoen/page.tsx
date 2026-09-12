@@ -4,7 +4,10 @@ import AmbassadeurEnroll from '@/components/ambassadeur/AmbassadeurEnroll';
 import { formatCentsForDisplay } from '@/lib/plan-pricing';
 import type { RibbaReferralConfig } from '@/lib/ribba-ambassadeur-types';
 
-const VOORWAARDEN_URL = 'https://ribba.nl/voorwaarden#ambassadeursprogramma';
+// Eigen document, geen artikel in de algemene voorwaarden: een ambassadeur is
+// geen rijschool en geen bezoeker van het vergelijkingsplatform, en die tekst
+// wijzigen zou bij elke rijschoolhouder een akkoordmodal openzetten.
+const VOORWAARDEN_URL = 'https://ribba.nl/voorwaarden-ambassadeursprogramma';
 
 // Publieke campagne-info via de anon-RPC. Eén bron voor het bedrag, zodat de
 // pagina, de mail en de uitbetaling nooit iets anders beloven dan er gebeurt.
