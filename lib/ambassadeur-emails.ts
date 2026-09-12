@@ -44,7 +44,7 @@ export async function stuurAmbassadeurWelkomMail(p: {
     pillColor: '#166534',
     title: 'Dit is jouw tiplink',
     bodyHtml: `
-      <p style="margin:0 0 16px">Stuur deze link naar je rijinstructeur. Sluit zijn rijschool via jouw link een betaald Ribba-plan af, dan verdien jij <strong>${formatCentsForDisplay(p.beloningCents)}</strong>.</p>
+      <p style="margin:0 0 16px">Stuur deze link naar je rijinstructeur. Sluit de rijschool via jouw link een betaald Ribba-plan af, dan verdien jij <strong>${formatCentsForDisplay(p.beloningCents)}</strong>.</p>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#F8FAFC;border-radius:12px;margin:0 0 16px">
         <tr><td style="padding:16px;font-size:14px;color:#0F172A;font-weight:600;word-break:break-all">
           <a href="${p.tipLink}" style="color:#2563EB">${escapeHtml(p.tipLink)}</a>
@@ -69,7 +69,7 @@ export async function stuurAmbassadeurVerdiendMail(p: {
     pillColor: '#1D4ED8',
     title: `Je hebt ${formatCentsForDisplay(p.bedragCents)} verdiend`,
     bodyHtml: `
-      <p style="margin:0 0 16px"><strong>${escapeHtml(p.schoolNaam)}</strong> is via jouw tip klant geworden bij Ribba en heeft zijn eerste betaling gedaan.</p>
+      <p style="margin:0 0 16px"><strong>${escapeHtml(p.schoolNaam)}</strong> is via jouw tip klant geworden bij Ribba en heeft de eerste betaling gedaan.</p>
       <p style="margin:0 0 8px;font-size:14px;color:#475569">Haal je ${formatCentsForDisplay(p.bedragCents)} op via je ambassadeurspagina. De eerste keer vraagt Stripe om je gegevens en je rekeningnummer; daarna staat het geld binnen enkele werkdagen op je rekening.</p>
     `,
     ctaLabel: 'Innen',
