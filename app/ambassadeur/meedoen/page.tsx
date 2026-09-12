@@ -29,7 +29,7 @@ async function leesCampagne(): Promise<RibbaReferralConfig | null> {
 export const metadata: Metadata = {
   title: 'Word Ribba-ambassadeur',
   description:
-    'Tip je rijinstructeur over Ribba en verdien geld zodra zijn rijschool een betaald plan afsluit.',
+    'Tip je rijinstructeur over Ribba en verdien geld zodra die rijschool een betaald plan afsluit.',
 };
 
 export default async function AmbassadeurMeedoenPage() {
@@ -60,14 +60,14 @@ export default async function AmbassadeurMeedoenPage() {
             <h1>Tip je rijinstructeur. Pak {beloning}.</h1>
             <p className="registration-description">
               Plant jouw rijschool de lessen nog via WhatsApp? Stuur je instructeur jouw
-              persoonlijke link. Sluit zijn rijschool via die link een betaald Ribba-plan af,
+              persoonlijke link. Sluit de rijschool via die link een betaald Ribba-plan af,
               dan verdien jij {beloning}.
             </p>
 
             <ol style={{ margin: '20px 0 0', paddingLeft: 20, fontSize: 15, lineHeight: 1.7 }}>
               <li>Je krijgt een eigen link. Alleen je e-mailadres is nodig.</li>
-              <li>Je stuurt die naar je rijinstructeur. Zijn klik telt {dagen} dagen mee.</li>
-              <li>Betaalt zijn rijschool voor Ribba, dan staat jouw {beloning} klaar.</li>
+              <li>Je stuurt die naar je rijinstructeur. Hun klik telt {dagen} dagen mee.</li>
+              <li>Betaalt de rijschool voor Ribba, dan staat jouw {beloning} klaar.</li>
               <li>Je haalt het op via Stripe en het staat binnen enkele werkdagen op je rekening.</li>
             </ol>
 

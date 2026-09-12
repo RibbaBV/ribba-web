@@ -290,7 +290,7 @@ export default function AmbassadeurPagina() {
             <h2 style={{ fontSize: 20, marginBottom: 4 }}>Je tips</h2>
             {(mij?.tips ?? []).length === 0 ? (
               <p className="registration-description">
-                Nog geen rijschool via jouw link. Stuur hem gerust nog eens door.
+                Nog geen rijschool via jouw link. Stuur de link gerust nog eens door.
               </p>
             ) : (
               <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0 0' }}>
