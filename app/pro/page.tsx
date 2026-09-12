@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import RibbaLogo from '../components/RibbaLogo';
+import TipCapture from '@/components/TipCapture';
 import { APP_STORE_URL } from '@/lib/app-links';
 import { getPlanPricing, formatCentsForDisplay } from '@/lib/plan-pricing';
 
@@ -46,6 +47,9 @@ function CheckIcon({ color = '#16A34A' }: { color?: string }) {
 export default function ProPage() {
   return (
     <div style={{ background: '#FAFAF9', minHeight: '100vh' }}>
+
+      {/* Tip van een leerling aan zijn instructeur: ?tip=CODE onthouden. */}
+      <TipCapture />
 
       {/* ── Nav ──────────────────────────────────────────────── */}
       <nav style={{

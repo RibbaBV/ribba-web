@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import SchoolRegistrationForm from '@/components/SchoolRegistrationForm';
 import RibbaLogo from '../components/RibbaLogo';
 import { registratieIntro } from '@/lib/signup-funnel';
+import TipCapture from '@/components/TipCapture';
 
 export const metadata: Metadata = {
   title: 'Start met Ribba – Maak een account aan',
@@ -11,6 +12,8 @@ export const metadata: Metadata = {
 export default function RegistrerenPage() {
   return (
     <main className="registration-page">
+      {/* Tip van een leerling aan zijn instructeur: ?tip=CODE onthouden. */}
+      <TipCapture />
       <section className="registration-card">
         <div className="registration-brand">
           <RibbaLogo height={36} />

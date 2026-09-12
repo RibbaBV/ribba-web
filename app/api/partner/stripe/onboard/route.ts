@@ -10,7 +10,18 @@ import { getStripe } from '@/lib/stripe';
 import { rateLimit } from '@/lib/rate-limit';
 import { DOMAIN } from '@/lib/domains';
 
-const PORTAL_URL = `${DOMAIN.referral}/partner`;
+// Twee portalen leunen op dezelfde Stripe-identiteit: de referral-partner van
+// een rijschool en de Ribba-ambassadeur. Waar iemand terugkomt na de hosted
+// onboarding hangt af van waar hij begon. Whitelist, geen vrije URL: een
+// return_url uit een request-body is een open redirect.
+const PORTALEN = {
+  partner: `${DOMAIN.referral}/partner`,
+  ambassadeur: `${DOMAIN.referral}/ambassadeur`,
+} as const;
+
+function portaalUrl(terug: unknown): string {
+  return terug === 'ambassadeur' ? PORTALEN.ambassadeur : PORTALEN.partner;
+}
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown';
@@ -23,6 +34,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Niet ingelogd.' }, { status: 401 });
   }
   const { user, supabase } = authed;
+
+  const body = await req.json().catch(() => ({}));
+  const portalUrl = portaalUrl((body as { terug?: unknown })?.terug);
 
   try {
     const { data: partner } = await supabase
@@ -65,8 +79,8 @@ export async function POST(req: NextRequest) {
     const link = await stripe.accountLinks.create({
       account: accountId,
       type: 'account_onboarding',
-      return_url: `${PORTAL_URL}?onboarding=return`,
-      refresh_url: `${PORTAL_URL}?onboarding=refresh`,
+      return_url: `${portalUrl}?onboarding=return`,
+      refresh_url: `${portalUrl}?onboarding=refresh`,
     });
 
     return NextResponse.json({ url: link.url });

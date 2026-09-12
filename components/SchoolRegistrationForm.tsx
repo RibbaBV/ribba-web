@@ -61,6 +61,7 @@ import { StoreBadges } from '@/app/components/StoreBadges';
 import { LEGAL_VERSIONS } from '@/lib/legal-versions';
 import { trackTrialSignup } from '@/lib/gtag';
 import { readSignupAttribution } from '@/lib/signup-attribution';
+import { huidigeTip } from '@/lib/ribba-tip';
 import {
   COUNTRY_PROFILES,
   ENABLED_COUNTRY_CODES,
@@ -338,6 +339,9 @@ export default function SchoolRegistrationForm() {
           },
           // Herkomst (utm/referrer/landing), first-touch uit localStorage.
           attribution: readSignupAttribution(),
+          // Tip van een leerling, last-touch uit de tip-cookie. Null wanneer
+          // niemand deze rijschool tipte, en dat is het normale geval.
+          ribba_tip_code: huidigeTip(),
         }),
       });
 

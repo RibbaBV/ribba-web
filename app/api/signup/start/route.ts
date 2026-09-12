@@ -49,6 +49,7 @@ import {
   pickAcceptedVersions,
 } from '@/lib/legal-acceptances';
 import { sanitizeSignupAttribution } from '@/lib/signup-attribution';
+import { normaliseerTipCode } from '@/lib/ribba-tip';
 import { INSCHRIJFPLAN } from '@/lib/signup-plan';
 import { resolveSignupOffer } from '@/lib/signup-offer';
 import { maakOfferDeps } from '@/lib/signup-offer-deps';
@@ -89,6 +90,13 @@ export async function POST(request: NextRequest) {
     // Best-effort: mag een registratie nooit tegenhouden, en `null` is een
     // geldige uitkomst voor wie rechtstreeks binnenkwam.
     const signupAttribution = sanitizeSignupAttribution(body.attribution);
+
+    // Ambassadeurstip: heeft een leerling deze rijschool over Ribba getipt?
+    // Alleen de vorm wordt hier gecontroleerd. Of de code bestaat, of de
+    // ambassadeur nog meedoet en of de campagne loopt, beslist de attributie
+    // bij activatie. Een onbekende code mag een inschrijving nooit tegenhouden,
+    // dus hij reist gewoon mee en loopt daar dood.
+    const tipCode = normaliseerTipCode(body.ribba_tip_code);
 
     // ── 1. Validatie ─────────────────────────────────────────────────────
     // Geen plankeuze: iedereen start op Premium (besluit 16 aug). Een `plan`
@@ -222,6 +230,7 @@ export async function POST(request: NextRequest) {
       promo_code: toegepastePromocode,
       legal_acceptance: legalAcceptance,
       signup_attribution: signupAttribution,
+      ribba_tip_code: tipCode,
       expires_at: new Date(Date.now() + PENDING_GELDIG_UREN * 3600_000).toISOString(),
     };
 
