@@ -11,7 +11,7 @@ export type TipStatus =
   | 'void';     // ingetrokken (dubbel, fraude, ops-correctie)
 
 export type UitbetalingStatus =
-  | 'te_innen'    // verdiend; de ambassadeur moet hem nog ophalen
+  | 'te_innen'    // verdiend; te innen zodra vrij_op is gepasseerd
   | 'geclaimd'    // ambassadeur klikte "innen"; de cron maakt de transfer
   | 'uitbetaald'  // transfer aangemaakt, geld onderweg
   | 'mislukt'     // transfer mislukt; opnieuw te innen na herstel
@@ -21,6 +21,8 @@ export interface RibbaReferralConfig {
   status: 'active' | 'paused';
   beloning_cents: number;
   attributie_dagen: number;
+  /** Dagen tussen verdienen en innen. Beschermt tegen de geld-terug-garantie. */
+  wachttijd_dagen: number;
   voorwaarden_versie: string;
 }
 
@@ -58,6 +60,8 @@ export interface UitbetalingRow {
   amount_cents: number;
   currency: string;
   status: UitbetalingStatus;
+  /** Vanaf wanneer te innen. Null op rijen van vóór de wachttijd. */
+  vrij_op: string | null;
   stripe_transfer_id: string | null;
   verdiend_mail_op: string | null;
   geclaimd_op: string | null;

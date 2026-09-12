@@ -39,10 +39,17 @@ type MijnGegevens = {
     id: string;
     amount_cents: number;
     status: UitbetalingStatus;
+    vrij_op: string | null;
     uitbetaald_op: string | null;
     created_at: string;
   }>;
-  totalen?: { te_innen_cents: number; onderweg_cents: number; uitbetaald_cents: number };
+  totalen?: {
+    te_innen_cents: number;
+    in_wachttijd_cents: number;
+    eerst_vrij_op: string | null;
+    onderweg_cents: number;
+    uitbetaald_cents: number;
+  };
 };
 
 const TIP_LABEL: Record<TipStatus, string> = {
@@ -253,6 +260,15 @@ export default function AmbassadeurPagina() {
               {' · '}uitbetaald: {formatCentsForDisplay(totalen?.uitbetaald_cents ?? 0)}
             </p>
 
+            {(totalen?.in_wachttijd_cents ?? 0) > 0 && (
+              <p className="footer-text" style={{ marginTop: 8 }}>
+                {formatCentsForDisplay(totalen?.in_wachttijd_cents ?? 0)} is verdiend en staat klaar
+                {totalen?.eerst_vrij_op ? ` vanaf ${datum(totalen.eerst_vrij_op)}` : ''}.
+                Rijscholen kunnen hun geld binnen 60 dagen terugvragen, dus we wachten die periode
+                grotendeels af voordat we uitbetalen.
+              </p>
+            )}
+
             {amb.verificatie_nodig && !amb.payouts_enabled && (
               <div className="alert alert-error" style={{ marginTop: 12, marginBottom: 16 }}>
                 <strong>Nog één ding voordat we kunnen overmaken</strong>
@@ -315,7 +331,10 @@ export default function AmbassadeurPagina() {
                     <li key={u.id} style={{ padding: '10px 0', borderBottom: '1px solid #E2E8F0' }}>
                       <strong>{formatCentsForDisplay(u.amount_cents)}</strong>
                       <div style={{ fontSize: 13, color: '#64748B' }}>
-                        {UITBETALING_LABEL[u.status]} · {datum(u.uitbetaald_op ?? u.created_at)}
+                        {u.status === 'te_innen' && u.vrij_op && new Date(u.vrij_op) > new Date()
+                          ? `Klaar vanaf ${datum(u.vrij_op)}`
+                          : UITBETALING_LABEL[u.status]}
+                        {' · '}{datum(u.uitbetaald_op ?? u.created_at)}
                       </div>
                     </li>
                   ))}

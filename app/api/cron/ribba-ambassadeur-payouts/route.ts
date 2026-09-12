@@ -5,7 +5,9 @@
 //      het hem vertellen. `verdiend_mail_op` is de marker;
 //   2. transfers: geclaimde uitbetalingen gaan vanaf het platformsaldo naar
 //      het Express-account van de ambassadeur;
-//   3. naveging: tips die volgens de database nog niet betaald zijn, maar
+//   3. terugboekingen: een beloning die nog in de wachttijd staat intrekken
+//      zodra de rijschool per saldo niets meer betaald heeft;
+//   4. naveging: tips die volgens de database nog niet betaald zijn, maar
 //      waarvan de rijschool bij Stripe wel een betaalde factuur heeft.
 //
 // WAAROM DIT SIMPELER IS DAN DE REFERRAL-CRON. Daar incasseert Ribba eerst bij
@@ -34,6 +36,8 @@ export const maxDuration = 300;
 /** Hoe lang een tip mag staan voordat de naveging hem bij Stripe natrekt. */
 const NAVEEG_UITSTEL_MINUTEN = 60;
 const NAVEEG_MAX = 50;
+/** Hoeveel openstaande beloningen per run bij Stripe worden nagetrokken. */
+const TERUGBOEKING_MAX = 100;
 
 function getSupabase(): SupabaseClient {
   return createClient(
@@ -55,13 +59,14 @@ export async function GET(request: NextRequest) {
     transfers: 0,
     transfers_mislukt: 0,
     nagevegen: 0,
+    ingetrokken: 0,
     overgeslagen: [] as Array<{ payout_id: string; reden: string }>,
   };
 
   // ── 1. Verdiend-mails ─────────────────────────────────────────────────────
   const { data: onaangekondigd } = await supabase
     .from('ribba_referral_payouts')
-    .select('id, referral_id, partner_id, amount_cents')
+    .select('id, referral_id, partner_id, amount_cents, vrij_op')
     .is('verdiend_mail_op', null)
     .in('status', ['te_innen', 'geclaimd'])
     .limit(200);
@@ -79,6 +84,7 @@ export async function GET(request: NextRequest) {
       email: partner.email,
       schoolNaam: tip?.school_naam ?? 'de rijschool die je tipte',
       bedragCents: payout.amount_cents,
+      vrijOp: payout.vrij_op ?? null,
     });
     // Alleen markeren bij een geslaagde verzending: een mislukte mail moet
     // morgen opnieuw langskomen, want dit is het enige bericht dat iemand
@@ -164,12 +170,80 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // ── 3. Naveging van gemiste verdienmomenten ───────────────────────────────
+  // ── 3. Terugboekingen ─────────────────────────────────────────────────────
+  // Ribba geeft 60 dagen geld terug. Vraagt een rijschool zijn geld terug, dan
+  // hoort de beloning die daaruit voortkwam te vervallen. Dat kan zolang hij
+  // nog niet is overgemaakt, en daar is de wachttijd van 30 dagen voor.
+  //
+  // WAAROM HIER EN NIET IN DE STRIPE-WEBHOOK. Een geld-terug-actie loopt als
+  // een refund, en de webhook in ribbaPro luistert niet naar `charge.refunded`.
+  // Die keten verwerkt alle abonnementsbetalingen; er een eventtype bij hangen
+  // is een zwaardere ingreep dan een stap in een cron die toch al met Stripe
+  // praat.
+  //
+  // De maat is niet "is er iets teruggeboekt" maar "heeft deze rijschool per
+  // saldo nog betaald". Dat vangt een gedeeltelijke terugboeking, een dispute
+  // en een creditering in één som, zonder dat we elk eventtype apart hoeven te
+  // kennen.
+  const { data: openstaand } = await supabase
+    .from('ribba_referral_payouts')
+    .select('id, referral_id, status')
+    .in('status', ['te_innen', 'geclaimd'])
+    .limit(TERUGBOEKING_MAX);
+
+  if ((openstaand ?? []).length > 0) {
+    const stripe = getStripe();
+    for (const payout of openstaand ?? []) {
+      try {
+        const { data: tip } = await supabase
+          .from('ribba_referrals')
+          .select('school_id')
+          .eq('id', payout.referral_id)
+          .maybeSingle();
+        if (!tip?.school_id) continue;
+
+        const { data: abo } = await supabase
+          .from('school_subscriptions')
+          .select('stripe_customer_id')
+          .eq('school_id', tip.school_id)
+          .not('stripe_customer_id', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!abo?.stripe_customer_id) continue;
+
+        const charges = await stripe.charges.list({ customer: abo.stripe_customer_id, limit: 20 });
+        const geslaagd = charges.data.filter((c) => c.status === 'succeeded');
+        // Geen enkele geslaagde afschrijving gezien? Dan weten we niets en
+        // trekken we niets in. Alleen een aantoonbaar leeg saldo telt.
+        if (geslaagd.length === 0) continue;
+        const netto = geslaagd.reduce(
+          (t, c) => t + (c.amount - (c.amount_refunded ?? 0) - (c.disputed ? c.amount : 0)),
+          0,
+        );
+        if (netto > 0) continue;
+
+        const { error } = await supabase.rpc('ribba_referral_trek_in', {
+          p_school_id: tip.school_id,
+          p_reden: 'betaling teruggeboekt of betwist bij Stripe',
+        });
+        if (error) {
+          console.error('ribba-ambassadeur-payouts: intrekken mislukt', payout.id, error.message);
+          continue;
+        }
+        samenvatting.ingetrokken++;
+      } catch (e) {
+        console.error('ribba-ambassadeur-payouts: terugboekingscheck fout', payout.id, String(e).slice(0, 200));
+      }
+    }
+  }
+
+  // ── 4. Naveging van gemiste verdienmomenten ───────────────────────────────
   // De webhook markeert het verdienmoment, maar mag daarvoor nooit een betaling
   // laten mislukken: gaat de RPC daar stuk, dan blijft het bij een incident.
   // Hier halen we die gevallen alsnog op, bij de bron.
   const grens = new Date(Date.now() - NAVEEG_UITSTEL_MINUTEN * 60 * 1000).toISOString();
-  const { data: openstaand } = await supabase
+  const { data: openTips } = await supabase
     .from('ribba_referrals')
     .select('id, school_id')
     .eq('status', 'aangemeld')
@@ -177,9 +251,9 @@ export async function GET(request: NextRequest) {
     .lt('aangemeld_op', grens)
     .limit(NAVEEG_MAX);
 
-  if ((openstaand ?? []).length > 0) {
+  if ((openTips ?? []).length > 0) {
     const stripe = getStripe();
-    for (const tip of openstaand ?? []) {
+    for (const tip of openTips ?? []) {
       try {
         const { data: abo } = await supabase
           .from('school_subscriptions')

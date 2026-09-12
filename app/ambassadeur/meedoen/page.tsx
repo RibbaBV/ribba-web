@@ -37,6 +37,7 @@ export default async function AmbassadeurMeedoenPage() {
   const gesloten = !campagne || campagne.status !== 'active';
   const beloning = formatCentsForDisplay(campagne?.beloning_cents ?? 2500);
   const dagen = campagne?.attributie_dagen ?? 30;
+  const wachttijd = campagne?.wachttijd_dagen ?? 30;
 
   return (
     <main className="registration-page">
@@ -67,8 +68,8 @@ export default async function AmbassadeurMeedoenPage() {
             <ol style={{ margin: '20px 0 0', paddingLeft: 20, fontSize: 15, lineHeight: 1.7 }}>
               <li>Je krijgt een eigen link. Alleen je e-mailadres is nodig.</li>
               <li>Je stuurt die naar je rijinstructeur. Hun klik telt {dagen} dagen mee.</li>
-              <li>Betaalt de rijschool voor Ribba, dan staat jouw {beloning} klaar.</li>
-              <li>Je haalt het op via Stripe en het staat binnen enkele werkdagen op je rekening.</li>
+              <li>Betaalt de rijschool voor Ribba, dan is jouw {beloning} verdiend.</li>
+              <li>Na {wachttijd} dagen haal je het op via Stripe, en staat het binnen enkele werkdagen op je rekening.</li>
             </ol>
 
             <AmbassadeurEnroll beloning={beloning} voorwaardenUrl={VOORWAARDEN_URL} />
@@ -76,7 +77,8 @@ export default async function AmbassadeurMeedoenPage() {
             <div className="divider" />
             <p className="footer-text">
               Je verdient pas iets als de rijschool echt betaalt. Een gratis proefperiode telt
-              niet mee. Zie de{' '}
+              niet mee. Uitbetalen doen we {wachttijd} dagen later, omdat een rijschool zijn geld
+              binnen 60 dagen kan terugvragen. Zie de{' '}
               <a href={VOORWAARDEN_URL} target="_blank" rel="noopener noreferrer" className="text-link">
                 voorwaarden
               </a>.

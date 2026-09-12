@@ -44,8 +44,28 @@ ambassadeur wordt, doorloopt de verificatie één keer.
 5. **Verdienen.** De stripe-webhook in ribbaPro roept bij een `invoice.paid`
    met `amount_paid > 0` de RPC `ribba_referral_markeer_verdiend` aan. Een
    proefperiodefactuur van EUR 0 telt niet mee.
-6. **Innen.** De ambassadeur krijgt een mail, klikt op innen, rondt eenmalig
-   zijn Stripe-verificatie af, en de dagelijkse cron maakt de transfer.
+6. **Innen.** De ambassadeur krijgt een mail, wacht de wachttijd af, klikt op
+   innen, rondt eenmalig de Stripe-verificatie af, en de dagelijkse cron maakt
+   de transfer.
+
+## De wachttijd van 30 dagen
+
+Ribba geeft 60 dagen geld terug. Zonder wachttijd was een beloning al
+uitbetaald tegen de tijd dat een rijschool zijn geld terugvroeg, en viel er
+niets meer te annuleren. Verdiend blijft daarom verdiend op het moment van
+betalen, maar te innen is het pas na `vrij_op`.
+
+Die datum staat op de uitbetaling en niet op de config, zodat een latere
+wijziging van `wachttijd_dagen` lopende beloningen niet verschuift.
+
+De toets staat op twee plekken, met verschillende taken: `beloningIsVrij` in
+`lib/ribba-ambassadeur.ts` bepaalt wat het scherm toont, en dezelfde regel staat
+in de WHERE van de innen-route zodat de tijd tussen lezen en schrijven nooit een
+beloning te vroeg laat vertrekken.
+
+Restrisico, bewust geaccepteerd: de garantie loopt 60 dagen en de wachttijd 30.
+Een terugboeking op dag 45 komt na de uitbetaling en is niet meer tegen te
+houden.
 
 ## Waarom innen een aparte stap is
 
@@ -65,7 +85,23 @@ klopt.
    idempotency-key per payout: een tweede aanroep levert dezelfde transfer op,
    dus deze volgorde kan hooguit een payout nog eens laten langskomen. Andersom
    zou een crash na de statusupdate iemand zijn geld kosten.
-3. **Naveging.** De webhook mag nooit een betaling laten mislukken over een
+3. **Terugboekingen.** Voor elke beloning die nog niet weg is (`te_innen` of
+   `geclaimd`) wordt bij Stripe het nettosaldo van de rijschool opgeteld:
+   afschrijvingen min terugboekingen min betwiste bedragen. Komt dat op nul of
+   lager, dan roept de sweep `ribba_referral_trek_in` aan.
+
+   De maat is bewust "heeft deze rijschool per saldo nog betaald" en niet "is er
+   een refund-event geweest". Zo vangt één som een gedeeltelijke terugboeking,
+   een dispute en een creditering af, zonder dat we elk eventtype apart hoeven te
+   kennen. Zag Stripe helemaal geen geslaagde afschrijving, dan weten we niets en
+   trekken we niets in.
+
+   Dit staat hier en niet in de stripe-webhook: een geld-terug-actie loopt als
+   een refund, en die webhook luistert niet naar `charge.refunded`. Een eventtype
+   toevoegen aan de keten die alle abonnementsbetalingen verwerkt is zwaarder dan
+   een stap in een cron die toch al met Stripe praat.
+
+4. **Naveging.** De webhook mag nooit een betaling laten mislukken over een
    referral, dus als de RPC daar stukgaat blijft het bij een incident. Deze stap
    trekt tips die langer dan een uur op `aangemeld` staan na bij Stripe, en
    markeert ze alsnog.
@@ -86,6 +122,6 @@ klopt.
   de vorm van de code op één plek (`lib/ribba-tip.ts`) en is die getest.
 - **Inkomsten van ambassadeurs** kunnen aangifteplichtig zijn. Dat staat in de
   voorwaarden; de afdracht is aan de ambassadeur.
-- **Terugdraaien na een chargeback.** Betaalt een rijschool zijn eerste factuur
-  en wordt die later teruggeboekt, dan is de beloning al onderweg. Dat is
-  platformverlies tot een handmatige correctie.
+- **Terugboeking na de wachttijd.** Binnen 30 dagen trekt de sweep de beloning
+  in. Daarna is het geld weg en is de garantie nog 30 dagen geldig; dat venster
+  is platformverlies tot een handmatige correctie.

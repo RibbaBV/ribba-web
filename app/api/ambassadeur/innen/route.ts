@@ -8,6 +8,10 @@
 //
 // Zonder afgeronde Stripe-verificatie kan er niets overgemaakt worden. Dan
 // weigeren we hier, in plaats van een claim aan te nemen die blijft hangen.
+//
+// Innen kan pas na de wachttijd (`vrij_op`). Ribba geeft 60 dagen geld terug;
+// zonder die termijn zou een beloning al uitbetaald zijn tegen de tijd dat een
+// rijschool zijn geld terugvraagt, en dan valt er niets meer te annuleren.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthedUser } from '@/lib/partner-auth';
@@ -41,11 +45,18 @@ export async function POST(req: NextRequest) {
 
     // Gefencede claim op de eigen rijen: `status = 'te_innen'` in de WHERE,
     // dus een tweede klik raakt nul rijen in plaats van iets dubbel te doen.
+    //
+    // De wachttijd zit in dezelfde WHERE en niet in een controle ervoor. Zou
+    // hij ervoor staan, dan bepaalt de tijd tussen lezen en schrijven of een
+    // beloning te vroeg vertrekt. `vrij_op is null` telt als vrij: dat zijn de
+    // rijen van vóór de wachttijd.
+    const nu = new Date().toISOString();
     const { data: geclaimd, error } = await supabase
       .from('ribba_referral_payouts')
-      .update({ status: 'geclaimd', geclaimd_op: new Date().toISOString() })
+      .update({ status: 'geclaimd', geclaimd_op: nu })
       .eq('partner_id', partner.id)
       .eq('status', 'te_innen')
+      .or(`vrij_op.is.null,vrij_op.lte.${nu}`)
       .select('id, amount_cents');
     if (error) {
       console.error('ambassadeur-innen: claim mislukt', error.message);

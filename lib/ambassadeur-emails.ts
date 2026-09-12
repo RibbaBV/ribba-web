@@ -58,11 +58,24 @@ export async function stuurAmbassadeurWelkomMail(p: {
   return verstuur(p.email, 'Je tiplink voor Ribba staat klaar', html);
 }
 
+function datumNl(iso: string): string {
+  return new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 export async function stuurAmbassadeurVerdiendMail(p: {
   email: string;
   schoolNaam: string;
   bedragCents: number;
+  vrijOp: string | null;
 }): Promise<boolean> {
+  // Staat het geld nog in de wachttijd, dan noemt de mail de datum. Anders zou
+  // hij zeggen "haal het op" terwijl de knop nog niet werkt, en dat is precies
+  // het soort belofte dat we nergens willen doen.
+  const wacht = p.vrijOp !== null && new Date(p.vrijOp) > new Date();
+  const staart = wacht
+    ? `<p style="margin:0 0 8px;font-size:14px;color:#475569">Je kunt het ophalen vanaf <strong>${escapeHtml(datumNl(p.vrijOp as string))}</strong>. We wachten die periode af omdat een rijschool zijn geld binnen 60 dagen kan terugvragen.</p>`
+    : `<p style="margin:0 0 8px;font-size:14px;color:#475569">Haal je ${formatCentsForDisplay(p.bedragCents)} op via je ambassadeurspagina. De eerste keer vraagt Stripe om je gegevens en je rekeningnummer; daarna staat het geld binnen enkele werkdagen op je rekening.</p>`;
+
   const html = wrap({
     pillLabel: 'Verdiend',
     pillBg: '#DBEAFE',
@@ -70,9 +83,9 @@ export async function stuurAmbassadeurVerdiendMail(p: {
     title: `Je hebt ${formatCentsForDisplay(p.bedragCents)} verdiend`,
     bodyHtml: `
       <p style="margin:0 0 16px"><strong>${escapeHtml(p.schoolNaam)}</strong> is via jouw tip klant geworden bij Ribba en heeft de eerste betaling gedaan.</p>
-      <p style="margin:0 0 8px;font-size:14px;color:#475569">Haal je ${formatCentsForDisplay(p.bedragCents)} op via je ambassadeurspagina. De eerste keer vraagt Stripe om je gegevens en je rekeningnummer; daarna staat het geld binnen enkele werkdagen op je rekening.</p>
+      ${staart}
     `,
-    ctaLabel: 'Innen',
+    ctaLabel: wacht ? 'Naar je ambassadeurspagina' : 'Innen',
     ctaHref: PORTAL_URL,
   });
   return verstuur(p.email, `Je hebt ${formatCentsForDisplay(p.bedragCents)} verdiend met je tip`, html);
