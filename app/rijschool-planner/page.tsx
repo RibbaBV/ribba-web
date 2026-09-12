@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import RibbaLogo from '../components/RibbaLogo';
+import TipCapture from '@/components/TipCapture';
 
 export const metadata: Metadata = {
   title: 'Ribba Rijschool Planner',
@@ -35,6 +36,8 @@ export default function RijschoolPlannerPage() {
         background: 'linear-gradient(180deg, #F8FAFC 0%, #EFF6FF 100%)',
       }}
     >
+      {/* Tip van een leerling aan zijn instructeur: ?tip=CODE onthouden. */}
+      <TipCapture />
       {/* Nav */}
       <nav
         style={{
