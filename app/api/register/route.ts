@@ -5,8 +5,8 @@ import { isValidEmail, isValidInternationalPhone, isMinimumAge } from '@/utils/v
 import { isValidPostalCode } from '@/lib/validation';
 import { recordReferralAttribution } from '@/lib/referral-attribution';
 import {
-  isBestaandeLeerlingElders,
-  bestaandeLeerlingAntwoord,
+  isEmailAlBekendConflict,
+  emailAlBekendAntwoord,
 } from '@/lib/students-registratie-fout';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -113,12 +113,20 @@ export async function POST(request: NextRequest) {
 
     const existingStudent = existing && existing.length > 0 ? existing[0] : null;
 
-    // Als de student al een auth-account heeft (=echt geregistreerd) → blokkeren
+    // Als de student al een auth-account heeft (=echt geregistreerd) → blokkeren.
+    //
+    // De melding zegt bewust niet dat het bij DEZE rijschool is. Dit endpoint
+    // is publiek en de aanvrager heeft niet bewezen dat het adres van hem is;
+    // zou dit geval anders klinken dan een adres bij een andere school, dan is
+    // uit het verschil af te leiden waar een adres hoort. Intern weten we het
+    // onderscheid nog gewoon — zie de logregel hieronder.
     if (existingStudent && existingStudent.user_id) {
-      return NextResponse.json(
-        { error: 'Dit e-mailadres is al aangemeld bij deze rijschool.' },
-        { status: 409 },
-      );
+      console.warn('[register] bestaand account bij deze rijschool', {
+        drivingschool_id,
+        student_id: existingStudent.id,
+      });
+      const { error, status } = emailAlBekendAntwoord();
+      return NextResponse.json({ error }, { status });
     }
 
     // Get school info for notification email
@@ -173,11 +181,18 @@ export async function POST(request: NextRequest) {
         .single();
       if (insertError || !insertedStudent) {
         console.error('Insert error:', insertError);
-        // De globale UNIQUE(email) op students: dit e-mailadres hoort al bij
-        // een leerlingrij van een andere rijschool. Geen storing en geen zaak
-        // om opnieuw te proberen — zie lib/students-registratie-fout.ts.
-        if (isBestaandeLeerlingElders(insertError)) {
-          const { error, status } = bestaandeLeerlingAntwoord();
+        // De globale UNIQUE(email) op students: dit adres hoort al bij een
+        // leerlingrij ergens in Ribba. Geen storing en geen zaak om opnieuw te
+        // proberen.
+        //
+        // Exact hetzelfde antwoord als het blok hierboven, met opzet: dat is
+        // het enige wat voorkomt dat de twee gevallen uit elkaar te houden
+        // zijn. Zie lib/students-registratie-fout.ts.
+        if (isEmailAlBekendConflict(insertError)) {
+          console.warn('[register] e-mailadres bestaat al elders in students', {
+            drivingschool_id,
+          });
+          const { error, status } = emailAlBekendAntwoord();
           return NextResponse.json({ error }, { status });
         }
         return NextResponse.json(
