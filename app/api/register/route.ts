@@ -4,6 +4,10 @@ import { rateLimit } from '@/lib/rate-limit';
 import { isValidEmail, isValidInternationalPhone, isMinimumAge } from '@/utils/validation';
 import { isValidPostalCode } from '@/lib/validation';
 import { recordReferralAttribution } from '@/lib/referral-attribution';
+import {
+  isBestaandeLeerlingElders,
+  bestaandeLeerlingAntwoord,
+} from '@/lib/students-registratie-fout';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -169,6 +173,13 @@ export async function POST(request: NextRequest) {
         .single();
       if (insertError || !insertedStudent) {
         console.error('Insert error:', insertError);
+        // De globale UNIQUE(email) op students: dit e-mailadres hoort al bij
+        // een leerlingrij van een andere rijschool. Geen storing en geen zaak
+        // om opnieuw te proberen — zie lib/students-registratie-fout.ts.
+        if (isBestaandeLeerlingElders(insertError)) {
+          const { error, status } = bestaandeLeerlingAntwoord();
+          return NextResponse.json({ error }, { status });
+        }
         return NextResponse.json(
           { error: 'Er ging iets mis bij het opslaan. Probeer het opnieuw.' },
           { status: 500 },
