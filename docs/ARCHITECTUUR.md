@@ -215,6 +215,37 @@ link.ribba.app/upgrade (ingelogd)
   → na period_end: current-plan API geeft plan=null terug
 ```
 
+### Gratis proefles
+
+Een aankomende leerling vraagt zonder account een gratis proefles aan. Het
+datamodel, de zoekmotor en alle mails leven in ribbaPro
+(`supabase/migrations/20260912140000_gratis_proefles.sql`, edge function
+`proefles-mails`, ontwerp `docs/design/gratis-proefles-ontwerp-2026-09-12.md`).
+Deze repo levert alleen de pagina's en een dunne API-laag over de RPC's.
+
+```
+mijn.ribba.app/proefles                      3 stappen: ophaalplek (kaart + PDOK) → dag/uur → gegevens
+  → POST /api/proefles/aanvragen             proefles_aanvraag_indienen  → 'onbevestigd' + bevestigingsmail
+mijn.ribba.app/proefles/bevestigen/{token}   GET toont (proefles_bevestiging_bekijken)
+  → POST /api/proefles/bevestigen            proefles_email_bevestigen   → 'zoekend' → redirect naar status
+mijn.ribba.app/proefles/status/{token}       leerling: status, rijschoolgegevens na acceptatie
+  → POST /api/proefles/annuleren             proefles_leerling_annuleren
+mijn.ribba.app/proefles/aanbod/{token}       rijschool: bekijken, accepteren, afwijzen, annuleren, ?actie=afmelden
+  → POST /api/proefles/aanbod                proefles_aanbod_reageren(token, actie)
+```
+
+- **GET muteert nooit.** Mailscanners openen elke link; alle wijzigingen gaan via POST.
+- **Tokens zijn UUID's** en worden gevalideerd vóór er een RPC wordt aangeroepen.
+- **Kaart en adressen:** Leaflet met de PDOK BRT Achtergrondkaart, adressen via de
+  PDOK Locatieserver (suggest/lookup/reverse). Allebei open en zonder sleutel.
+  CARTO-tegels tonen inmiddels een "API KEY REQUIRED"-watermerk.
+- **Tijdsloten** rekenen in Europe/Amsterdam (`lib/proefles-slots.ts`), met dezelfde
+  grenzen als `proefles_instellingen` in de database. De database blijft de bewaker.
+- **Toestemming:** de API vult `p_voorwaarden_versie`/`p_privacy_versie` uit
+  `lib/legal-versions.ts`; de client kan daar geen andere versie in zetten.
+- Contract en uitkomsten: `lib/proefles.ts`. Wijzigt de migratie een uitkomst, dan gaat
+  die file mee. `tests/proefles.test.mjs` bewaakt de parameternamen.
+
 ## Legal pagina's
 
 **Belangrijk onderscheid:**

@@ -1019,3 +1019,337 @@ a.text-link:hover {
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
   }
 }
+
+/* ─── Gratis proefles ────────────────────────────── */
+/* Leerlingkant: het roze van het Ribba-logo als accent, het blauw van
+   ribba-web voor acties. De stappenbalk is een weg met een middenstreep. */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.proefles-pagina {
+  --pf-roze: #E8468C;
+  --pf-roze-zacht: #FDECF4;
+  --pf-inkt: #1C1917;
+  --pf-grijs: #57534E;
+  --pf-lijn: #E7E5E4;
+  background:
+    radial-gradient(1200px 500px at 110% -10%, rgba(232, 70, 140, 0.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(37, 99, 235, 0.08), transparent 60%),
+    #FAFAF9;
+  align-items: flex-start;
+  padding: 2rem 1rem 3rem;
+}
+
+.proefles-kaartje.breed { max-width: 680px; }
+
+@media (max-width: 520px) {
+  .proefles-pagina { padding: 0; }
+  .proefles-kaartje { border-radius: 0; padding: 28px 18px 32px; min-height: 100vh; border: none; }
+}
+
+.proefles-pil { background: var(--pf-roze-zacht); color: #B42367; }
+
+.proefles-titel {
+  font-size: clamp(26px, 5vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  color: var(--pf-inkt);
+  margin: 0;
+}
+
+.proefles-flow { margin-top: 28px; }
+
+/* Stappen als een weg */
+.proefles-route {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0 0 24px;
+  padding: 0;
+  position: relative;
+}
+.proefles-route::before {
+  content: '';
+  position: absolute;
+  top: 15px;
+  left: 16.6%;
+  right: 16.6%;
+  height: 4px;
+  border-radius: 4px;
+  background: repeating-linear-gradient(90deg, #D6D3D1 0 10px, transparent 10px 18px);
+}
+.proefles-route li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #A8A29E;
+}
+.proefles-route-punt {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 2px solid #D6D3D1;
+  font-size: 14px;
+  font-weight: 800;
+  z-index: 1;
+  transition: all 0.25s;
+}
+.proefles-route li.nu { color: var(--pf-inkt); }
+.proefles-route li.nu .proefles-route-punt {
+  border-color: var(--pf-roze);
+  color: var(--pf-roze);
+  box-shadow: 0 0 0 5px rgba(232, 70, 140, 0.14);
+}
+.proefles-route li.gedaan { color: var(--pf-grijs); }
+.proefles-route li.gedaan .proefles-route-punt { background: var(--pf-roze); border-color: var(--pf-roze); color: #fff; }
+
+.proefles-stap { outline: none; animation: pf-in 0.35s ease both; }
+.proefles-stap h2 { font-size: 20px; font-weight: 800; color: var(--pf-inkt); margin: 0; letter-spacing: -0.01em; }
+.proefles-uitleg { color: var(--pf-grijs); font-size: 15px; line-height: 1.55; margin: 6px 0 18px; }
+
+@keyframes pf-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .proefles-stap, .proefles-speld svg { animation: none !important; }
+}
+
+/* Adres zoeken */
+.proefles-zoeker { position: relative; }
+.proefles-zoeker input {
+  width: 100%;
+  padding: 14px 14px 14px 44px;
+  border: 1.5px solid var(--pf-lijn);
+  border-radius: 12px;
+  font-size: 16px;
+  font-family: inherit;
+  color: var(--pf-inkt);
+  background: #fff;
+}
+.proefles-zoeker input:focus { outline: none; border-color: #2563EB; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); }
+.proefles-zoeker-icoon { position: absolute; left: 14px; top: 15px; width: 20px; height: 20px; color: #A8A29E; }
+.proefles-suggesties {
+  position: absolute;
+  z-index: 1000;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--pf-lijn);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(28, 25, 23, 0.12);
+}
+.proefles-suggesties li { padding: 10px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; color: var(--pf-inkt); }
+.proefles-suggesties li.actief { background: #EFF6FF; }
+
+/* Kaart met vaste speld */
+.proefles-kaart {
+  position: relative;
+  height: min(52vh, 380px);
+  min-height: 280px;
+  margin-top: 12px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--pf-lijn);
+  isolation: isolate;
+}
+.proefles-kaart-laden { height: 100%; display: grid; place-items: center; color: #A8A29E; font-size: 14px; background: #F5F5F4; }
+.proefles-speld {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 52px;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  z-index: 500;
+}
+.proefles-speld svg { width: 40px; height: 52px; fill: var(--pf-roze); filter: drop-shadow(0 6px 8px rgba(180, 35, 103, 0.35)); animation: pf-val 0.5s cubic-bezier(.3, 1.6, .5, 1) both; }
+.proefles-speld-schaduw {
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 14px;
+  height: 6px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: rgba(28, 25, 23, 0.3);
+}
+@keyframes pf-val {
+  from { transform: translateY(-14px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.proefles-gps {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: none;
+  background: #fff;
+  color: var(--pf-inkt);
+  font: 600 13px/1 inherit;
+  font-family: inherit;
+  box-shadow: 0 4px 14px rgba(28, 25, 23, 0.16);
+  cursor: pointer;
+}
+.proefles-gps svg { width: 16px; height: 16px; color: #2563EB; }
+.proefles-gps:disabled { opacity: 0.7; }
+
+.proefles-gekozen {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #F5F5F4;
+  color: var(--pf-grijs);
+  font-size: 14px;
+  line-height: 1.45;
+  min-height: 46px;
+}
+.proefles-gekozen.ok { background: var(--pf-roze-zacht); color: var(--pf-inkt); }
+.proefles-gekozen strong { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #B42367; margin-bottom: 2px; }
+
+/* Dag en tijd */
+.proefles-dagen {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.proefles-dagen::-webkit-scrollbar { display: none; }
+.proefles-dagen button {
+  flex: 1 0 72px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border-radius: 14px;
+  border: 1.5px solid var(--pf-lijn);
+  background: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.proefles-dag-week { font-size: 12px; font-weight: 600; text-transform: uppercase; color: #A8A29E; letter-spacing: 0.05em; }
+.proefles-dag-datum { font-size: 15px; font-weight: 800; color: var(--pf-inkt); white-space: nowrap; }
+.proefles-dagen button.gekozen { border-color: var(--pf-inkt); background: var(--pf-inkt); }
+.proefles-dagen button.gekozen span { color: #fff; }
+.proefles-dagen button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.proefles-uren {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.proefles-uren button {
+  padding: 12px 0;
+  border-radius: 10px;
+  border: 1.5px solid var(--pf-lijn);
+  background: #fff;
+  font: 700 15px/1 inherit;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-inkt);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.proefles-uren button:hover:not(:disabled) { border-color: var(--pf-roze); }
+.proefles-uren button.gekozen { background: var(--pf-roze); border-color: var(--pf-roze); color: #fff; box-shadow: 0 6px 16px rgba(232, 70, 140, 0.3); }
+.proefles-uren button:disabled { color: #D6D3D1; background: #FAFAF9; text-decoration: line-through; cursor: not-allowed; }
+
+/* Gegevens */
+.proefles-samenvatting { margin: 18px 0 0; padding: 0; border: 1px solid var(--pf-lijn); border-radius: 14px; overflow: hidden; }
+.proefles-samenvatting > div {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+.proefles-samenvatting > div + div { border-top: 1px solid #F5F5F4; }
+.proefles-samenvatting dt { color: #A8A29E; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.proefles-samenvatting dd { margin: 0; color: var(--pf-inkt); font-weight: 600; overflow-wrap: anywhere; }
+.proefles-samenvatting dd a { color: #2563EB; text-decoration: none; }
+.proefles-samenvatting button { border: none; background: none; color: #2563EB; font: 600 13px inherit; font-family: inherit; cursor: pointer; padding: 0; }
+@media (max-width: 420px) {
+  .proefles-samenvatting > div { grid-template-columns: 1fr auto; }
+  .proefles-samenvatting dt { grid-column: 1 / -1; }
+}
+
+.proefles-honing { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+.proefles-akkoord { border: none; margin: 22px 0 0; padding: 0; display: grid; gap: 12px; }
+.proefles-akkoord label { display: grid; grid-template-columns: 22px 1fr; gap: 10px; font-size: 14px; line-height: 1.45; color: var(--pf-grijs); cursor: pointer; }
+.proefles-akkoord input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--pf-roze); }
+.proefles-akkoord a { color: #2563EB; font-weight: 600; }
+
+.btn-primary.proefles-roze { background: var(--pf-roze); }
+.btn-primary.proefles-roze:hover { background: #CF2F74; }
+.btn-primary.proefles-rood { background: #DC2626; }
+.btn-primary.proefles-rood:hover { background: #B91C1C; }
+
+/* Klaar */
+.proefles-klaar { text-align: left; }
+.proefles-klaar-icoon { width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; background: var(--pf-roze-zacht); color: var(--pf-roze); margin-bottom: 18px; }
+.proefles-klaar-icoon svg { width: 34px; height: 34px; }
+.proefles-tijdlijn { list-style: none; counter-reset: pf; padding: 0; margin: 22px 0; display: grid; gap: 14px; }
+.proefles-tijdlijn li { counter-increment: pf; position: relative; padding-left: 42px; font-size: 14px; line-height: 1.5; color: var(--pf-grijs); }
+.proefles-tijdlijn li::before {
+  content: counter(pf);
+  position: absolute;
+  left: 0;
+  top: -2px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 13px;
+  background: #F5F5F4;
+  color: var(--pf-inkt);
+}
+.proefles-tijdlijn strong { color: var(--pf-inkt); }
+
+/* Token-pagina's */
+.proefles-keuze { display: grid; gap: 0; }
+.proefles-bevestig-blok { margin-top: 22px; padding: 16px; border-radius: 14px; background: #FEF2F2; border: 1px solid #FECACA; }
+.proefles-bevestig-blok p { margin: 0; font-size: 14px; color: #7F1D1D; line-height: 1.5; }
+.proefles-bevestig-blok .btn-primary { margin-top: 14px; }
+.proefles-klein { font-size: 12px; line-height: 1.5; color: #A8A29E; margin-top: 16px; }
+.proefles-klein a { color: var(--pf-grijs); }
+.proefles-app { margin-top: 24px; padding: 16px; border-radius: 14px; background: #F5F5F4; }
+.proefles-app p { margin: 0 0 12px; font-size: 14px; line-height: 1.5; color: var(--pf-grijs); }
+.proefles-app p strong { color: var(--pf-inkt); }

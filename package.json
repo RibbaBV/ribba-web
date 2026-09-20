@@ -14,9 +14,11 @@
     "@stripe/stripe-js": "^9.12.1",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.100.0",
+    "leaflet": "^1.9.4",
     "next": "^16.2.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-leaflet": "^5.0.0",
     "stripe": "^22.3.2"
   },
   "overrides": {
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
