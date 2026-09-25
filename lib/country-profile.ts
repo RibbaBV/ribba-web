@@ -81,10 +81,12 @@ export const COUNTRY_PROFILES: Record<string, CountryProfile> = {
       placeholder: 'NL123456789B01',
     },
     phone: {
-      // Zelfde semantiek als de bestaande isValidPhone (NL-mobiel).
-      pattern: /^(06\d{8}|\+316\d{8}|00316\d{8})$/,
+      // Elk NL-nummer van 10 cijfers: mobiel (06), vast (010, 020, …) en
+      // VoIP/zakelijk (085, 088). Rijscholen hebben vaak geen 06 als
+      // bedrijfsnummer. Zelfde semantiek als validatePhoneNumber in de app.
+      pattern: /^(0[1-9]\d{8}|\+31[1-9]\d{8}|0031[1-9]\d{8})$/,
       placeholder: '0612345678',
-      errorHint: 'Ongeldig telefoonnummer (bijv. 0612345678)',
+      errorHint: 'Ongeldig telefoonnummer (bijv. 0612345678 of 0851234567)',
     },
   },
   BE: {
