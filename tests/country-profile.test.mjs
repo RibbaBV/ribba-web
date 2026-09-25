@@ -80,12 +80,22 @@ test('NL-btw: NL + 9 cijfers + B + 2 cijfers', () => {
   assert.equal(normalizeVat('nl 0041.54279.b18'), 'NL004154279B18');
 });
 
-test('NL-telefoon: 06/+316/00316-mobiel, onzichtbare tekens opgeschoond', () => {
+test('NL-telefoon: mobiel, vast en 085/088, onzichtbare tekens opgeschoond', () => {
   assert.equal(isValidPhoneFor(NL, '0612345678'), true);
   assert.equal(isValidPhoneFor(NL, '+31612345678'), true);
+  assert.equal(isValidPhoneFor(NL, '0031612345678'), true);
   assert.equal(isValidPhoneFor(NL, '06 12 34 56 78'), true);
-  assert.equal(isValidPhoneFor(NL, '0101234567'), false, 'vaste lijn — zelfde semantiek als voorheen');
-  assert.equal(isValidPhoneFor(NL, '0470123456'), false, 'BE-mobiel hoort niet bij NL-profiel');
+  assert.equal(isValidPhoneFor(NL, '0101234567'), true, 'vaste lijn Rotterdam');
+  assert.equal(isValidPhoneFor(NL, '020-1234567'), true, 'vaste lijn met streepje');
+  assert.equal(isValidPhoneFor(NL, '0854879975'), true, 'VoIP/zakelijk 085');
+  assert.equal(isValidPhoneFor(NL, '+31854879975'), true);
+  assert.equal(isValidPhoneFor(NL, '0885551234'), true, 'zakelijk 088');
+  assert.equal(isValidPhoneFor(NL, '0012345678'), false, 'na de 0 geen tweede 0');
+  assert.equal(isValidPhoneFor(NL, '00612345678'), false);
+  assert.equal(isValidPhoneFor(NL, '061234567'), false, 'te kort');
+  assert.equal(isValidPhoneFor(NL, '06123456789'), false, 'te lang');
+  assert.equal(isValidPhoneFor(NL, '+3101234567'), false, 'geen 0 na +31');
+  assert.equal(isValidPhoneFor(NL, '+32470123456'), false, 'BE-landcode hoort niet bij NL-profiel');
 });
 
 test('BE-profiel staat klaar: postcode, KBO, btw en telefoon', () => {
