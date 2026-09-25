@@ -1,7 +1,22 @@
 // Inquiry-intake vanaf de vergelijkingssite (ribba.app, statisch — POST
-// cross-origin hierheen). Maakt 1 inquiries-rij + N inquiry_recipients aan en
-// stuurt outreach-mails naar de geselecteerde rijscholen (na de response,
-// via after()). Issue ribba.app#33.
+// cross-origin hierheen) én sinds F2-4a vanuit de Ribba-app. Maakt 1
+// inquiries-rij + N inquiry_recipients aan en stuurt outreach-mails naar de
+// geselecteerde rijscholen (na de response, via after()). Issue ribba.app#33.
+//
+// INGELOGDE APP-GEBRUIKER (F2-4a, 25 sep 2026)
+// De app stuurt een `Authorization: Bearer <access_token>` mee. Is die geldig,
+// dan:
+//   - wint het e-mailadres van het account boven wat de client stuurt — anders
+//     zou claim_inquiry (gelijk e-mailadres) falen en gaan de mails naar een
+//     ander adres dan de leerling zelf;
+//   - is de rate-limit per gebruiker in plaats van per IP (mobiel zit vaak
+//     achter carrier-NAT: één IP voor duizenden toestellen);
+//   - wordt source_page 'app';
+//   - wordt ná de RPC inquiries.leerling_user_id gezet, zodat get_my_inquiries
+//     (Mijn aanvragen in de app) de aanvraag meteen ziet.
+// Een ongeldige bearer is 401. Zonder bearer verandert er niets: de site
+// werkt zoals voorheen. De DB-poort (submit_inquiry) blijft service_role-only;
+// dit endpoint is de enige intake voor site én app, en de enige plek die mailt.
 
 import { NextRequest, NextResponse, after } from 'next/server';
 import { rateLimit } from '@/lib/rate-limit';
@@ -20,11 +35,31 @@ export async function OPTIONS(request: NextRequest) {
   return corsPreflight(request.headers.get('origin'));
 }
 
+type AppUser = { id: string; email: string };
+
+/** Geldige bearer → de ingelogde gebruiker; geen bearer → null; ongeldig → 'ongeldig'. */
+async function appUserFromBearer(request: NextRequest): Promise<AppUser | null | 'ongeldig'> {
+  const auth = request.headers.get('authorization');
+  if (!auth?.startsWith('Bearer ')) return null;
+  const token = auth.slice('Bearer '.length).trim();
+  if (!token) return 'ongeldig';
+  const { data, error } = await getServiceClient().auth.getUser(token);
+  const email = data?.user?.email?.trim().toLowerCase();
+  if (error || !data?.user?.id || !email) return 'ongeldig';
+  return { id: data.user.id, email };
+}
+
 export async function POST(request: NextRequest) {
   const headers = corsHeaders(request.headers.get('origin'));
 
+  const appUser = await appUserFromBearer(request);
+  if (appUser === 'ongeldig') {
+    return NextResponse.json({ error: 'Ongeldige sessie.' }, { status: 401, headers });
+  }
+
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown';
-  if (!rateLimit(`inquiry:${ip}`, { maxRequests: 5, windowMs: 3_600_000 })) {
+  const rateKey = appUser ? `inquiry:user:${appUser.id}` : `inquiry:${ip}`;
+  if (!rateLimit(rateKey, { maxRequests: 5, windowMs: 3_600_000 })) {
     return NextResponse.json(
       { error: 'Te veel aanvragen. Probeer het over een uur opnieuw.' },
       { status: 429, headers },
@@ -51,7 +86,10 @@ export async function POST(request: NextRequest) {
   }
 
   const leerlingName = typeof body.leerling_name === 'string' ? body.leerling_name.trim() : '';
-  const leerlingEmail = typeof body.leerling_email === 'string' ? body.leerling_email.trim().toLowerCase() : '';
+  // Ingelogd: het account-e-mailadres, niet wat de client stuurt.
+  const leerlingEmail = appUser
+    ? appUser.email
+    : typeof body.leerling_email === 'string' ? body.leerling_email.trim().toLowerCase() : '';
   const leerlingPhone = typeof body.leerling_phone === 'string' && body.leerling_phone.trim() !== ''
     ? body.leerling_phone.trim()
     : null;
@@ -69,7 +107,9 @@ export async function POST(request: NextRequest) {
   const bericht = typeof body.bericht === 'string' && body.bericht.trim() !== ''
     ? body.bericht.trim().slice(0, 2000)
     : null;
-  const sourcePage = typeof body.source_page === 'string' ? body.source_page.slice(0, 500) : null;
+  const sourcePage = appUser
+    ? 'app'
+    : typeof body.source_page === 'string' ? body.source_page.slice(0, 500) : null;
 
   if (!leerlingName || leerlingName.length > 120) {
     return NextResponse.json({ error: 'Naam is verplicht.' }, { status: 400, headers });
@@ -154,6 +194,20 @@ export async function POST(request: NextRequest) {
         { error: 'Je hebt deze rijscholen de afgelopen 24 uur al een aanvraag gestuurd.' },
         { status: 409, headers },
       );
+    }
+
+    // Koppel de aanvraag aan het account vóór de response, zodat Mijn
+    // aanvragen hem direct toont. Mislukt dit, dan is de aanvraag wél gemaakt
+    // en gaan de mails wél; de app kan hem alsnog claimen via claim_inquiry
+    // (zelfde e-mailadres), dus dit is geen reden voor een 500.
+    if (appUser) {
+      const { error: koppelError } = await supabase
+        .from('inquiries')
+        .update({ leerling_user_id: appUser.id })
+        .eq('id', inquiryId);
+      if (koppelError) {
+        console.error('inquiry-submit: leerling_user_id koppelen mislukt', inquiryId, koppelError);
+      }
     }
 
     // Outreach + leerling-bevestiging ná de response: de leerling hoeft niet
