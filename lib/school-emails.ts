@@ -5,6 +5,7 @@
 import { logBillingEvent } from './billing-events';
 import { getPlanPricing, formatCentsForDisplay, type PlanPricing } from './plan-pricing';
 import { DOMAIN } from './domains';
+import { buildReminderCopy, reminderEmailType, type FreePeriodReminder } from './free-period-reminder';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
@@ -282,4 +283,56 @@ export async function sendTrialEndingReminderMail(
     ctaColor: isUrgent ? '#DC2626' : '#2563EB',
   });
   await sendMail(schoolEmail, subject, html, { schoolId, emailType: `trial_ending_reminder_${daysLeft}d` });
+}
+
+/**
+ * De herinnering voor een school MET een Stripe-abonnement: de gratis periode
+ * loopt af en het abonnement loopt door. Niet te verwarren met
+ * `sendTrialEndingReminderMail` hierboven, die een school zónder abonnement
+ * vraagt er een te kiezen. Tekst en selectie: lib/free-period-reminder.ts.
+ */
+export async function sendFreePeriodEndingMail(
+  schoolEmail: string,
+  schoolName: string,
+  reminder: FreePeriodReminder,
+): Promise<void> {
+  const copy = buildReminderCopy(reminder);
+
+  const tariefRegel = (plan: 'basic' | 'premium', naam: string, uitleg: string, eerste: boolean) => {
+    const prijs = getPlanPricing(plan);
+    return `
+        <tr>
+          <td style="padding:14px 16px;font-size:14px;color:#0F172A${eerste ? '' : ';border-top:1px solid #E2E8F0'}">
+            <strong>${naam} — ${formatCentsForDisplay(prijs.netMonthlyCents)} / maand excl. btw</strong> <span style="font-size:13px;color:#64748B">(${formatCentsForDisplay(prijs.grossMonthlyCents)} incl. btw)</span><br>
+            <span style="font-size:13px;color:#64748B">${uitleg}</span>
+          </td>
+        </tr>`;
+  };
+  // Premium ziet beide tarieven, omdat de mail Basic als keuze noemt. Basic
+  // ziet alleen het eigen tarief: er valt niets te kiezen.
+  const tarieven = reminder.plan === 'premium'
+    ? tariefRegel('premium', 'Premium', 'Je huidige plan · onbeperkt leerlingen, tot 5 instructeurs', true)
+      + tariefRegel('basic', 'Basic', '1 instructeur, tot 30 leerlingen', false)
+    : tariefRegel('basic', 'Basic', 'Je huidige plan · 1 instructeur, tot 30 leerlingen', true);
+
+  const html = wrap({
+    pillLabel: copy.pillLabel,
+    pillBg: '#DBEAFE',
+    pillColor: '#1E40AF',
+    title: copy.title,
+    bodyHtml: `
+      <p style="margin:0 0 12px">Beste ${escapeHtml(schoolName)},</p>
+      <p style="margin:0 0 16px">${escapeHtml(copy.intro)}</p>
+      <table cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#F8FAFC;border-radius:12px;margin:16px 0">${tarieven}
+      </table>
+      ${copy.switchToBasic ? `<p style="margin:0 0 12px">${escapeHtml(copy.switchToBasic)}</p>` : ''}
+      <p style="margin:0">${escapeHtml(copy.cancel)}</p>
+    `,
+    ctaLabel: copy.ctaLabel,
+    ctaHref: `${BASE_URL}/upgrade`,
+  });
+  await sendMail(schoolEmail, copy.subject, html, {
+    schoolId: reminder.schoolId,
+    emailType: reminderEmailType(reminder.daysLeft),
+  });
 }
