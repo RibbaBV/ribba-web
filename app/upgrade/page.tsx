@@ -12,6 +12,13 @@ import {
   type UpgradePlan,
 } from '@/lib/stripe-upgrade';
 import { canManageSubscriptionFrom } from '@/lib/subscription-access';
+import {
+  callChangePlan,
+  formatSwitchDate,
+  planSwitchView,
+  statusFromResult,
+  type PlanSwitchStatus,
+} from '@/lib/plan-switch';
 import Link from 'next/link';
 
 const basicPricing = getPlanPricing('basic');
@@ -77,6 +84,13 @@ function UpgradeContent() {
   // expliciet `true` geeft de koop-/opzegacties vrij. `planLoading` dekt het
   // laadmoment af, dus dit knippert niet.
   const [canManageSubscription, setCanManageSubscription] = useState(false);
+  // Geplande wissel naar Basic: live uit Stripe via stripe-change-plan, nooit
+  // uit een Ribba-kolom. Start op "onbekend" → geen knop tot Stripe antwoordt.
+  const [switchStatus, setSwitchStatus] = useState<PlanSwitchStatus>({ known: false });
+  const [switching, setSwitching] = useState<'schedule' | 'undo' | null>(null);
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
+  // Eén attempt_id per bewuste klik; een netwerkfout hervat dezelfde poging.
+  const switchAttemptRef = useRef<string | null>(null);
 
   // Auth + resolve school_id (from URL or via Supabase session)
   useEffect(() => {
@@ -145,7 +159,21 @@ function UpgradeContent() {
         setCancelledAt(body.cancelledAt || null);
         setPeriodEnd(body.periodEnd || null);
         // Fail-closed: alleen een expliciet `true` geeft de acties vrij.
-        setCanManageSubscription(canManageSubscriptionFrom(planRes.ok, body));
+        const mayManage = canManageSubscriptionFrom(planRes.ok, body);
+        setCanManageSubscription(mayManage);
+
+        // Staat er een wissel naar Basic gepland? Alleen de eigenaar van een
+        // betaald plan kan er een hebben. Geen Stripe-abonnement (404) of geen
+        // antwoord → "onbekend", en dan toont de pagina geen wisselknop.
+        if (mayManage && !body.isTrial && (body.plan === 'premium' || body.plan === 'basic')) {
+          const statusResult = await callChangePlan({
+            supabaseUrl,
+            accessToken: token,
+            schoolId: resolvedSchoolId,
+            action: 'status',
+          });
+          setSwitchStatus(statusFromResult(statusResult));
+        }
 
         if (usageRes.ok) {
           const usage = await usageRes.json();
@@ -284,6 +312,64 @@ function UpgradeContent() {
       setCancelling(false);
     }
   };
+
+  const confirmSwitch = async () => {
+    if (!schoolId || switching) return;
+    setShowSwitchModal(false);
+    await runSwitch('schedule');
+  };
+
+  const undoSwitch = async () => {
+    if (!schoolId || switching) return;
+    await runSwitch('undo');
+  };
+
+  const runSwitch = async (action: 'schedule' | 'undo') => {
+    if (!schoolId) return;
+    setSwitching(action);
+    setError(null);
+
+    const supabase = getSupabaseBrowser();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      router.replace('/login');
+      return;
+    }
+
+    if (action === 'schedule' && !switchAttemptRef.current) {
+      switchAttemptRef.current = crypto.randomUUID();
+    }
+    const result = await callChangePlan({
+      supabaseUrl,
+      accessToken: token,
+      schoolId,
+      action,
+      attemptId: action === 'schedule' ? switchAttemptRef.current ?? undefined : undefined,
+    });
+
+    if (!result.ok) {
+      if (result.kind === 'definitive') switchAttemptRef.current = null;
+      setError(result.error);
+      setSwitching(null);
+      return;
+    }
+    switchAttemptRef.current = null;
+    setSwitchStatus(
+      result.scheduled && result.switchAt
+        ? { known: true, scheduled: true, switchAt: result.switchAt }
+        : { known: true, scheduled: false },
+    );
+    setSwitching(null);
+  };
+
+  const switchView = planSwitchView({
+    canManageSubscription,
+    currentPlan,
+    isTrial,
+    cancelled: Boolean(cancelledAt || cancelSuccess),
+    status: switchStatus,
+  });
 
   const isCurrentPlan = (plan: string) => {
     if (isTrial) return false;
@@ -482,6 +568,42 @@ function UpgradeContent() {
           </div>
         )}
 
+        {/* Geplande wissel naar Basic — de datum komt van Stripe */}
+        {!planLoading && switchView.kind === 'scheduled' && (
+          <div
+            style={{
+              maxWidth: 780,
+              margin: '0 auto 32px',
+              padding: '16px 20px',
+              background: '#EFF6FF',
+              border: '1px solid #BFDBFE',
+              borderRadius: 14,
+              color: '#1E3A8A',
+              fontSize: 14,
+              lineHeight: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div>
+              Je gaat op <strong>{formatSwitchDate(switchView.switchAt)}</strong> naar Basic.
+              Tot die dag houd je Premium.
+            </div>
+            <button
+              type="button"
+              onClick={undoSwitch}
+              disabled={switching !== null}
+              className="btn-secondary"
+              style={{ width: 'auto', padding: '10px 16px', opacity: switching ? 0.5 : 1 }}
+            >
+              {switching === 'undo' ? 'Bezig...' : 'Toch Premium houden'}
+            </button>
+          </div>
+        )}
+
         {/* Plan Cards — alleen tonen nadat session-check + plan-fetch klaar zijn */}
         {!planLoading && (
         <>
@@ -524,6 +646,25 @@ function UpgradeContent() {
                   style={basicBlockedReason ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                 >
                   {loading === 'basic' ? 'Bezig...' : 'Kies Basic'}
+                </button>
+                {basicBlockedReason && (
+                  <p style={{ fontSize: 12, color: '#B45309', margin: 0, lineHeight: 1.4 }}>
+                    {basicBlockedReason}
+                  </p>
+                )}
+              </div>
+            ) : switchView.kind === 'scheduled' ? (
+              <div className="btn-current">Gaat in op {formatSwitchDate(switchView.switchAt)}</div>
+            ) : switchView.kind === 'offer' ? (
+              <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  className="btn-secondary"
+                  onClick={() => setShowSwitchModal(true)}
+                  disabled={switching !== null || basicBlockedReason !== null}
+                  title={basicBlockedReason ?? undefined}
+                  style={basicBlockedReason ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                >
+                  {switching === 'schedule' ? 'Bezig...' : 'Na deze periode naar Basic'}
                 </button>
                 {basicBlockedReason && (
                   <p style={{ fontSize: 12, color: '#B45309', margin: 0, lineHeight: 1.4 }}>
@@ -650,21 +791,44 @@ function UpgradeContent() {
         </div>
       </div>
 
-      {/* Custom cancel-confirm modal — vervangt window.confirm() voor consistente UI */}
+      {/* Eigen bevestigingsdialogen — vervangen window.confirm() voor consistente UI */}
       {showCancelModal && (
-        <CancelConfirmModal
+        <ConfirmModal
+          title="Abonnement opzeggen?"
+          body="Je houdt toegang tot het einde van je huidige betaalperiode. Daarna stopt je abonnement en kun je opnieuw kiezen."
+          confirmLabel="Ja, opzeggen"
+          confirmColor="#DC2626"
           onCancel={() => setShowCancelModal(false)}
           onConfirm={confirmCancel}
+        />
+      )}
+
+      {showSwitchModal && (
+        <ConfirmModal
+          title="Na deze periode naar Basic?"
+          body={`Je houdt Premium tot het einde van je huidige periode. Daarna ga je naar Basic: maximaal ${BASIC_MAX_STUDENTS} actieve leerlingen en ${BASIC_MAX_INSTRUCTORS} instructeur, tegen het Basic-tarief. Tot die datum kun je dit nog terugdraaien.`}
+          confirmLabel="Ja, naar Basic"
+          confirmColor="#2563EB"
+          onCancel={() => setShowSwitchModal(false)}
+          onConfirm={confirmSwitch}
         />
       )}
     </main>
   );
 }
 
-function CancelConfirmModal({
+function ConfirmModal({
+  title,
+  body,
+  confirmLabel,
+  confirmColor,
   onCancel,
   onConfirm,
 }: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  confirmColor: string;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -698,7 +862,7 @@ function CancelConfirmModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="cancel-modal-title"
+        aria-labelledby="confirm-modal-title"
         onClick={(e) => e.stopPropagation()}
         style={{
           background: '#fff',
@@ -710,7 +874,7 @@ function CancelConfirmModal({
         }}
       >
         <h2
-          id="cancel-modal-title"
+          id="confirm-modal-title"
           style={{
             fontSize: 20,
             fontWeight: 800,
@@ -718,11 +882,10 @@ function CancelConfirmModal({
             margin: '0 0 12px',
           }}
         >
-          Abonnement opzeggen?
+          {title}
         </h2>
         <p style={{ fontSize: 15, color: '#57534E', lineHeight: 1.55, margin: '0 0 24px' }}>
-          Je houdt toegang tot het einde van je huidige betaalperiode. Daarna
-          stopt je abonnement en kun je opnieuw kiezen.
+          {body}
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           <button
@@ -746,7 +909,7 @@ function CancelConfirmModal({
             onClick={onConfirm}
             autoFocus
             style={{
-              background: '#DC2626',
+              background: confirmColor,
               color: '#fff',
               border: 'none',
               padding: '12px 20px',
@@ -756,7 +919,7 @@ function CancelConfirmModal({
               cursor: 'pointer',
             }}
           >
-            Ja, opzeggen
+            {confirmLabel}
           </button>
         </div>
       </div>
