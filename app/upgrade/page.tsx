@@ -14,10 +14,14 @@ import {
 import { canManageSubscriptionFrom } from '@/lib/subscription-access';
 import {
   callChangePlan,
+  confirmUpgrade,
   formatSwitchDate,
   planSwitchView,
+  previewUpgrade,
   statusFromResult,
+  upgradeConfirmText,
   type PlanSwitchStatus,
+  type UpgradePreview,
 } from '@/lib/plan-switch';
 import Link from 'next/link';
 
@@ -91,6 +95,12 @@ function UpgradeContent() {
   const [showSwitchModal, setShowSwitchModal] = useState(false);
   // Eén attempt_id per bewuste klik; een netwerkfout hervat dezelfde poging.
   const switchAttemptRef = useRef<string | null>(null);
+  // Upgrade naar Premium binnen het lopende abonnement: eerst het bedrag uit
+  // Stripe, dan akkoord. Zelfde attempt-regel als hierboven.
+  const [upgradePreview, setUpgradePreview] = useState<UpgradePreview | null>(null);
+  const [upgrading, setUpgrading] = useState<'preview' | 'confirm' | null>(null);
+  const [upgradeDone, setUpgradeDone] = useState(false);
+  const upgradeAttemptRef = useRef<string | null>(null);
 
   // Auth + resolve school_id (from URL or via Supabase session)
   useEffect(() => {
@@ -377,6 +387,68 @@ function UpgradeContent() {
     status: switchStatus,
   });
 
+  // Basic met een Stripe-abonnement (de status-aanroep gaf antwoord): upgraden
+  // gaat binnen dat abonnement, met verrekening. Zonder Stripe-abonnement blijft
+  // het de checkout — die weigert sinds 1 okt een tweede abonnement.
+  const upgradeInSubscription = currentPlan === 'basic' && !isTrial && switchStatus.known;
+
+  const sessionToken = async (): Promise<string | null> => {
+    const supabase = getSupabaseBrowser();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token ?? null;
+    if (!token) router.replace('/login');
+    return token;
+  };
+
+  const startUpgrade = async () => {
+    if (!schoolId || upgrading) return;
+    setUpgrading('preview');
+    setError(null);
+    const token = await sessionToken();
+    if (!token) return;
+    const result = await previewUpgrade({ supabaseUrl, accessToken: token, schoolId });
+    setUpgrading(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    upgradeAttemptRef.current = null;
+    setUpgradePreview(result.preview);
+  };
+
+  const confirmUpgradeNow = async () => {
+    if (!schoolId || !upgradePreview || upgrading) return;
+    setUpgrading('confirm');
+    setError(null);
+    const token = await sessionToken();
+    if (!token) return;
+    if (!upgradeAttemptRef.current) upgradeAttemptRef.current = crypto.randomUUID();
+    const result = await confirmUpgrade({
+      supabaseUrl,
+      accessToken: token,
+      schoolId,
+      attemptId: upgradeAttemptRef.current,
+      prorationDate: upgradePreview.prorationDate,
+    });
+    setUpgrading(null);
+    if (!result.ok) {
+      // Netwerkfout: de uitkomst is onzeker. Dezelfde attempt_id blijft staan,
+      // zodat een tweede klik bij Stripe hetzelfde verzoek is (idempotent) en
+      // niet een tweede upgrade. Een ontvangen fout sluit de poging af.
+      if (result.kind === 'definitive') {
+        upgradeAttemptRef.current = null;
+        setUpgradePreview(null);
+      }
+      setError(result.error);
+      return;
+    }
+    upgradeAttemptRef.current = null;
+    setUpgradePreview(null);
+    setCurrentPlan('premium');
+    setSwitchStatus({ known: true, scheduled: false });
+    setUpgradeDone(true);
+  };
+
   const isCurrentPlan = (plan: string) => {
     if (isTrial) return false;
     return currentPlan === plan;
@@ -574,6 +646,26 @@ function UpgradeContent() {
           </div>
         )}
 
+        {/* Net geüpgraded. De licentie volgt via de webhook; deze melding
+            hangt daar niet van af. */}
+        {!planLoading && upgradeDone && (
+          <div
+            style={{
+              maxWidth: 780,
+              margin: '0 auto 32px',
+              padding: '16px 20px',
+              background: '#F0FDF4',
+              border: '1px solid #BBF7D0',
+              borderRadius: 14,
+              color: '#14532D',
+              fontSize: 14,
+              lineHeight: 1.5,
+            }}
+          >
+            Je hebt nu <strong>Premium</strong>. Het kan een minuut duren voordat de app het ook laat zien.
+          </div>
+        )}
+
         {/* Geplande wissel naar Basic — de datum komt van Stripe */}
         {!planLoading && switchView.kind === 'scheduled' && (
           <div
@@ -721,10 +813,10 @@ function UpgradeContent() {
               <button
                 className="btn-primary"
                 style={{ marginTop: 'auto' }}
-                onClick={() => handleCheckout('premium')}
-                disabled={loading !== null}
+                onClick={() => (upgradeInSubscription ? startUpgrade() : handleCheckout('premium'))}
+                disabled={loading !== null || upgrading !== null}
               >
-                {loading === 'premium' ? 'Bezig...' : (currentPlan === 'basic' ? 'Upgrade naar Premium' : 'Kies Premium')}
+                {loading === 'premium' || upgrading === 'preview' ? 'Bezig...' : (currentPlan === 'basic' ? 'Upgrade naar Premium' : 'Kies Premium')}
               </button>
             ) : (
               <div style={{ marginTop: 'auto' }} />
@@ -806,6 +898,21 @@ function UpgradeContent() {
           confirmColor="#DC2626"
           onCancel={() => setShowCancelModal(false)}
           onConfirm={confirmCancel}
+        />
+      )}
+
+      {upgradePreview && (
+        <ConfirmModal
+          title="Nu upgraden naar Premium?"
+          body={upgradeConfirmText(
+            upgradePreview,
+            formatCentsForDisplay(premiumPricing.netMonthlyCents),
+            formatCentsForDisplay,
+          )}
+          confirmLabel={upgrading === 'confirm' ? 'Bezig...' : 'Ja, upgrade nu'}
+          confirmColor="#2563EB"
+          onCancel={() => { if (!upgrading) setUpgradePreview(null); }}
+          onConfirm={confirmUpgradeNow}
         />
       )}
 
