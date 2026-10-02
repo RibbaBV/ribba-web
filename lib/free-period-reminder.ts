@@ -192,10 +192,9 @@ export interface ReminderCopy {
   /**
    * Alleen bij Premium: de weg naar Basic.
    *
-   * TIJDELIJK een mailadres. De knop "naar Basic" op de website bestaat nog
-   * niet (ontwerp: ribbaPro PR #731). Zodra die er is, wijst deze zin naar de
-   * website en vervalt het mailadres. Een mail die naar een knop verwijst die
-   * er niet is, is erger dan een mail die om een mailtje vraagt.
+   * Wijst naar de knop "Na deze periode naar Basic" op /upgrade — dezelfde
+   * pagina waar de knop onder de mail heen gaat. Tot 2 okt 2026 was dit een
+   * mailadres, omdat die knop nog niet bestond.
    */
   switchToBasic: string | null;
   /** Hoe je voorkomt dat het doorloopt. Altijd aanwezig. */
@@ -230,8 +229,8 @@ export function buildReminderCopy(input: {
       + `je abonnement loopt daarna door op ${plan} en wordt maandelijks automatisch geïncasseerd.`,
     switchToBasic: input.plan === 'premium'
       ? (morgen
-        ? 'Liever Basic? Mail ons vandaag nog op team@ribba.nl, dan zetten we je abonnement om.'
-        : `Liever Basic? Mail ons vóór ${datum} op team@ribba.nl, dan zetten we je abonnement om.`)
+        ? 'Liever Basic? Kies vandaag nog "Na deze periode naar Basic" op de pagina achter de knop hieronder.'
+        : `Liever Basic? Kies vóór ${datum} "Na deze periode naar Basic" op de pagina achter de knop hieronder.`)
       : null,
     cancel: morgen
       ? 'Wil je niet doorgaan? Zeg dan vandaag nog op via de knop hieronder.'

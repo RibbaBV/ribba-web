@@ -158,11 +158,14 @@ test('T5: de mail belooft geen bedrag op een datum en dreigt niet met verlies va
   }
 });
 
-test('T6: de weg naar Basic is tijdelijk een mailadres, geen link naar een knop die niet bestaat', () => {
-  // Verandert zodra de knop op /upgrade live is (ribbaPro PR #731). Deze test
-  // moet dan bewust mee veranderen.
-  const c = buildReminderCopy({ plan: 'premium', daysLeft: 7, endsAt: EINDE });
-  assert.match(c.switchToBasic, /team@ribba\.nl/);
+test('T6: de weg naar Basic is de knop op /upgrade, niet meer een mailadres', () => {
+  // Sinds 2 okt 2026 bestaat de knop "Na deze periode naar Basic" op /upgrade,
+  // en de knop onder de mail gaat naar die pagina.
+  for (const daysLeft of [7, 1]) {
+    const c = buildReminderCopy({ plan: 'premium', daysLeft, endsAt: EINDE });
+    assert.match(c.switchToBasic, /Na deze periode naar Basic/);
+    assert.doesNotMatch(c.switchToBasic, /team@ribba\.nl|mail ons/i);
+  }
 });
 
 // ── Niet dubbel versturen ───────────────────────────────────────────────────
