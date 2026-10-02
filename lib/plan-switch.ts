@@ -156,3 +156,143 @@ export function formatSwitchDate(iso: string): string {
     timeZone: 'Europe/Amsterdam',
   }).format(new Date(iso));
 }
+
+// ── Upgraden naar Premium (ontwerp §8, besluit U-b) ─────────────────────────
+//
+// Direct Premium; het verschil over de rest van de periode gaat mee met de
+// eerstvolgende incasso. Eerst een voorvertoning met het bedrag uit Stripe,
+// dan toestemming, dan de wissel met dezelfde `proration_date` — zodat het
+// bedrag dat de rijschool zag het bedrag is dat Stripe rekent.
+
+export type UpgradePreview = {
+  prorationDate: number;
+  inFreePeriod: boolean;
+  differenceExclCents: number;
+  /** Null als Stripe de btw niet meegaf; dan tonen we alleen excl. btw. */
+  differenceInclCents: number | null;
+  nextInvoiceAt: string;
+};
+
+export type UpgradePreviewResult =
+  | { ok: true; preview: UpgradePreview }
+  | { ok: false; error: string; kind: 'network' | 'definitive' };
+
+export type UpgradeResult =
+  | { ok: true; upgraded: boolean }
+  | { ok: false; error: string; kind: 'network' | 'definitive'; reason: string | null };
+
+async function postChangePlan(opts: {
+  supabaseUrl: string;
+  accessToken: string;
+  body: Record<string, unknown>;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}): Promise<{ ok: true; status: number; data: Record<string, unknown> } | { ok: false }> {
+  const doFetch = opts.fetchImpl ?? fetch;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? SWITCH_TIMEOUT_MS);
+  try {
+    const res = await doFetch(changePlanFunctionUrl(opts.supabaseUrl), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${opts.accessToken}` },
+      body: JSON.stringify(opts.body),
+      signal: controller.signal,
+    });
+    let data: Record<string, unknown> = {};
+    try {
+      data = await res.json();
+    } catch {
+      // lege/onleesbare body
+    }
+    return { ok: true, status: res.status, data };
+  } catch {
+    return { ok: false };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function serverError(data: Record<string, unknown>): string {
+  return typeof data.error === 'string' && data.error.trim() !== '' ? data.error : GENERIC_SWITCH_ERROR;
+}
+
+const isCents = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
+
+/** Wat komt erbij, en wanneer? Leest alleen. */
+export async function previewUpgrade(opts: {
+  supabaseUrl: string;
+  accessToken: string;
+  schoolId: string;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}): Promise<UpgradePreviewResult> {
+  const r = await postChangePlan({ ...opts, body: { school_id: opts.schoolId, action: 'upgrade_preview', plan: 'premium' } });
+  if (!r.ok) return { ok: false, error: NETWORK_SWITCH_ERROR, kind: 'network' };
+  const d = r.data;
+  // Alleen een volledig antwoord: zonder bedrag of datum vragen we geen toestemming.
+  if (
+    r.status !== 200 || d.success !== true
+    || !isCents(d.proration_date) || typeof d.in_free_period !== 'boolean'
+    || !isCents(d.difference_excl_cents)
+    || !(d.difference_incl_cents === null || isCents(d.difference_incl_cents))
+    || typeof d.next_invoice_at !== 'string' || Number.isNaN(Date.parse(d.next_invoice_at))
+  ) {
+    return { ok: false, error: r.status === 200 ? GENERIC_SWITCH_ERROR : serverError(d), kind: 'definitive' };
+  }
+  return {
+    ok: true,
+    preview: {
+      prorationDate: d.proration_date,
+      inFreePeriod: d.in_free_period,
+      differenceExclCents: d.difference_excl_cents,
+      differenceInclCents: d.difference_incl_cents as number | null,
+      nextInvoiceAt: d.next_invoice_at,
+    },
+  };
+}
+
+/** De upgrade zelf, met de `proration_date` van de voorvertoning waarop akkoord is gegeven. */
+export async function confirmUpgrade(opts: {
+  supabaseUrl: string;
+  accessToken: string;
+  schoolId: string;
+  attemptId: string;
+  prorationDate: number;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}): Promise<UpgradeResult> {
+  const r = await postChangePlan({
+    ...opts,
+    body: { school_id: opts.schoolId, action: 'upgrade', plan: 'premium', attempt_id: opts.attemptId, proration_date: opts.prorationDate },
+  });
+  if (!r.ok) return { ok: false, error: NETWORK_SWITCH_ERROR, kind: 'network', reason: null };
+  const d = r.data;
+  if (r.status !== 200 || d.success !== true || typeof d.upgraded !== 'boolean') {
+    return {
+      ok: false,
+      error: r.status === 200 ? GENERIC_SWITCH_ERROR : serverError(d),
+      kind: 'definitive',
+      reason: typeof d.reason === 'string' ? d.reason : null,
+    };
+  }
+  // `upgraded: false` met `already_on_plan` = de school had al Premium.
+  return { ok: true, upgraded: d.upgraded };
+}
+
+/**
+ * De tekst in de bevestiging. Het bedrag komt uit de voorvertoning van
+ * Stripe; Ribba rekent niets zelf.
+ */
+export function upgradeConfirmText(p: UpgradePreview, premiumMonthlyExcl: string, formatCents: (c: number) => string): string {
+  const datum = formatSwitchDate(p.nextInvoiceAt);
+  if (p.inFreePeriod) {
+    return `Je gaat direct over op Premium. In je gratis periode betaal je niets extra. Vanaf ${datum} betaal je ${premiumMonthlyExcl} per maand excl. btw.`;
+  }
+  if (p.differenceExclCents <= 0) {
+    return `Je gaat direct over op Premium. Voor de rest van deze periode komt er niets bij. Vanaf ${datum} betaal je ${premiumMonthlyExcl} per maand excl. btw.`;
+  }
+  const bedrag = p.differenceInclCents !== null
+    ? `${formatCents(p.differenceExclCents)} excl. btw (${formatCents(p.differenceInclCents)} incl. btw)`
+    : `${formatCents(p.differenceExclCents)} excl. btw`;
+  return `Je gaat direct over op Premium. Voor de rest van deze periode komt er ${bedrag} bij je volgende incasso op ${datum}. Daarna betaal je ${premiumMonthlyExcl} per maand excl. btw.`;
+}

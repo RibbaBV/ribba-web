@@ -156,3 +156,88 @@ test('/upgrade: de wisselknop opent eerst een bevestiging, en de status komt uit
   assert.match(src, /Toch Premium houden/);
   assert.match(src, /action: 'status'/);
 });
+
+// ── Upgraden naar Premium binnen het abonnement ─────────────────────────────
+
+const { previewUpgrade, confirmUpgrade, upgradeConfirmText } = await import('../lib/plan-switch.ts');
+
+const euro = (c) => `€${(c / 100).toFixed(2).replace('.', ',')}`;
+const goedePreview = {
+  success: true, proration_date: 1790000000, in_free_period: false,
+  difference_excl_cents: 1033, difference_incl_cents: 1250, currency: 'eur',
+  next_invoice_at: '2026-11-01T11:28:00.000Z',
+};
+
+test('upgrade-voorvertoning: vraagt Premium en leest het bedrag uit Stripe', async () => {
+  const { fn, calls } = fakeFetch(200, goedePreview);
+  const r = await previewUpgrade({ supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, fetchImpl: fn });
+  assert.deepEqual(calls[0].body, { school_id: SCHOOL, action: 'upgrade_preview', plan: 'premium' });
+  assert.deepEqual(r, { ok: true, preview: {
+    prorationDate: 1790000000, inFreePeriod: false, differenceExclCents: 1033, differenceInclCents: 1250,
+    nextInvoiceAt: '2026-11-01T11:28:00.000Z',
+  } });
+});
+
+test('upgrade-voorvertoning: een onvolledig antwoord geeft geen toestemmingsvraag', async () => {
+  for (const kapot of [
+    { ...goedePreview, proration_date: undefined },
+    { ...goedePreview, difference_excl_cents: '10,33' },
+    { ...goedePreview, next_invoice_at: 'binnenkort' },
+    { ...goedePreview, in_free_period: undefined },
+  ]) {
+    const { fn } = fakeFetch(200, kapot);
+    const r = await previewUpgrade({ supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, fetchImpl: fn });
+    assert.equal(r.ok, false, JSON.stringify(kapot));
+  }
+});
+
+test('upgrade-voorvertoning: fouttekst van de server ongewijzigd door', async () => {
+  const { fn } = fakeFetch(409, { error: 'Je abonnement is opgezegd. Een planwissel kan dan niet.' });
+  const r = await previewUpgrade({ supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, fetchImpl: fn });
+  assert.deepEqual(r, { ok: false, error: 'Je abonnement is opgezegd. Een planwissel kan dan niet.', kind: 'definitive' });
+});
+
+test('upgrade: stuurt de proration_date van de voorvertoning en de attempt_id mee', async () => {
+  const { fn, calls } = fakeFetch(200, { success: true, upgraded: true, plan: 'premium' });
+  const r = await confirmUpgrade({ supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, attemptId: 'a-1', prorationDate: 1790000000, fetchImpl: fn });
+  assert.deepEqual(r, { ok: true, upgraded: true });
+  assert.deepEqual(calls[0].body, { school_id: SCHOOL, action: 'upgrade', plan: 'premium', attempt_id: 'a-1', proration_date: 1790000000 });
+});
+
+test('upgrade: verlopen bedrag → fout met reden, poging afgesloten', async () => {
+  const { fn } = fakeFetch(409, { error: 'Het bedrag is verlopen. Vraag het opnieuw op en bevestig dan.', reason: 'preview_expired' });
+  const r = await confirmUpgrade({ supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, attemptId: 'a', prorationDate: 1, fetchImpl: fn });
+  assert.deepEqual(r, { ok: false, error: 'Het bedrag is verlopen. Vraag het opnieuw op en bevestig dan.', kind: 'definitive', reason: 'preview_expired' });
+});
+
+test('upgrade: netwerkfout → kind network (zelfde attempt_id mag hervatten)', async () => {
+  const r = await confirmUpgrade({
+    supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, attemptId: 'a', prorationDate: 1,
+    fetchImpl: async () => { throw new TypeError('fetch failed'); },
+  });
+  assert.equal(r.ok, false);
+  assert.equal(r.kind, 'network');
+});
+
+test('bevestigingstekst: betaalde maand noemt het verschil en de incassodatum', () => {
+  const t = upgradeConfirmText({ prorationDate: 1, inFreePeriod: false, differenceExclCents: 1033, differenceInclCents: 1250, nextInvoiceAt: '2026-11-01T11:28:00Z' }, '€45,00', euro);
+  assert.equal(t, 'Je gaat direct over op Premium. Voor de rest van deze periode komt er €10,33 excl. btw (€12,50 incl. btw) bij je volgende incasso op 1 november 2026. Daarna betaal je €45,00 per maand excl. btw.');
+});
+
+test('bevestigingstekst: zonder btw uit Stripe alleen excl. btw, niets geraden', () => {
+  const t = upgradeConfirmText({ prorationDate: 1, inFreePeriod: false, differenceExclCents: 1033, differenceInclCents: null, nextInvoiceAt: '2026-11-01T11:28:00Z' }, '€45,00', euro);
+  assert.match(t, /€10,33 excl\. btw bij je volgende incasso/);
+  assert.doesNotMatch(t, /incl\. btw/);
+});
+
+test('bevestigingstekst: gratis periode → niets extra', () => {
+  const t = upgradeConfirmText({ prorationDate: 1, inFreePeriod: true, differenceExclCents: 0, differenceInclCents: 0, nextInvoiceAt: '2026-11-01T11:28:00Z' }, '€45,00', euro);
+  assert.equal(t, 'Je gaat direct over op Premium. In je gratis periode betaal je niets extra. Vanaf 1 november 2026 betaal je €45,00 per maand excl. btw.');
+});
+
+test('/upgrade: Basic met Stripe-abonnement upgradet binnen het abonnement, anders de checkout', () => {
+  const src = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
+  assert.match(src, /const upgradeInSubscription = currentPlan === 'basic' && !isTrial && switchStatus\.known;/);
+  assert.match(src, /upgradeInSubscription \? startUpgrade\(\) : handleCheckout\('premium'\)/);
+  assert.match(src, /Nu upgraden naar Premium\?/);
+});
