@@ -45,6 +45,7 @@ const SCENARIOS = {
   B5: 'downgrade in een betaalde periode + opzeggen in de periode erna (B5, B3)',
   B6: 'geplande wissel intrekken met release (B6)',
   U: 'upgrade midden in een betaalde periode: twee vormen (U)',
+  P: 'controle van de meetopzet: rondt een SEPA-incasso af op een Test Clock?',
 };
 
 const args = process.argv.slice(2);
@@ -78,6 +79,12 @@ const stripe = new Stripe(KEY, { apiVersion: API_VERSION });
 // ── Hulpjes ─────────────────────────────────────────────────────────────────
 const tijd = (u) => (u ? new Date(u * 1000).toISOString().slice(0, 16).replace('T', ' ') : '—');
 const euro = (centen) => `€${(centen / 100).toFixed(2)}`;
+/**
+ * Het bedrag zonder btw. De controles vergelijken hierop: de testomgeving heeft
+ * geen btw-registratie en rekent 0%, live rekent 21%. Het plan en de
+ * verrekening zijn wat dit onderzoek meet, niet het btw-tarief.
+ */
+const netto = (f) => f.total_excluding_tax ?? f.subtotal;
 const UUR = 3600;
 const DAG = 86400;
 
@@ -326,11 +333,10 @@ async function scenarioB1() {
   const wisselFactuur = facturen[0];
   console.log('  facturen (nieuwste eerst):');
   facturen.forEach(toonFactuur);
-  const verwacht = belasting ? 3025 : 2500;
   bevinding(
     'B5 factuur op het wisselmoment (gratis periode)',
-    naWissel.plan === 'basic' && wisselFactuur?.total === verwacht && wisselFactuur.lines.data.length === 1
-      ? `JA — één regel, ${euro(wisselFactuur.total)}, plan=basic`
+    naWissel.plan === 'basic' && wisselFactuur && netto(wisselFactuur) === 2500 && wisselFactuur.lines.data.length === 1
+      ? `JA — één regel, ${euro(netto(wisselFactuur))} excl. btw, plan=basic`
       : 'AFWIJKEND',
     `plan=${naWissel.plan} status=${naWissel.status} totaal=${wisselFactuur ? euro(wisselFactuur.total) : '—'} regels=${wisselFactuur?.lines.data.length}`,
   );
@@ -362,11 +368,22 @@ async function scenarioB2() {
   const sub = await maakAbonnement(omgeving, 'premium', { discounts: [{ coupon: coupon.id }] });
   const voor = foto(await stripe.subscriptions.retrieve(sub.id));
   toonFoto('vóór', voor);
+  // De korting zelf: loopt hij nog tot dezelfde datum, of start het herhalen
+  // van de coupon in de fasen een nieuwe looptijd?
+  const korting = async () => {
+    const s = await stripe.subscriptions.retrieve(sub.id, { expand: ['discounts'] });
+    const d = s.discounts[0];
+    return d && typeof d !== 'string' ? { id: d.id, start: d.start, end: d.end } : null;
+  };
+  const kortingVoor = await korting();
+  console.log(`  korting vóór:        ${kortingVoor?.id}  ${tijd(kortingVoor?.start)} → ${tijd(kortingVoor?.end)}`);
 
   const { fase0 } = await planDowngrade(sub.id);
   const na = foto(await stripe.subscriptions.retrieve(sub.id));
   toonFoto('ná plannen', na);
   console.log(`  korting in de fase die Stripe zelf maakte: ${JSON.stringify(fase0.discounts ?? [])}`);
+  const kortingNaPlannen = await korting();
+  console.log(`  korting ná plannen:  ${kortingNaPlannen?.id}  ${tijd(kortingNaPlannen?.start)} → ${tijd(kortingNaPlannen?.end)}`);
 
   await klokNaar(omgeving.clock.id, voor.current_period_end + UUR, 'einde periode 1');
   const naWissel = foto(await stripe.subscriptions.retrieve(sub.id));
@@ -380,6 +397,15 @@ async function scenarioB2() {
       ? 'JA — plan=basic, korting staat er nog, factuur €0,00'
       : 'NEE / AFWIJKEND',
     `plan=${naWissel.plan} kortingen=${naWissel.discounts.length} factuur=${facturen[0] ? euro(facturen[0].total) : '—'}`,
+  );
+  const kortingNaWissel = await korting();
+  console.log(`  korting ná de wissel: ${kortingNaWissel?.id}  ${tijd(kortingNaWissel?.start)} → ${tijd(kortingNaWissel?.end)}`);
+  const zelfdeEind = kortingVoor?.end === kortingNaPlannen?.end && kortingVoor?.end === kortingNaWissel?.end;
+  bevinding(
+    'B2 de korting houdt zijn oorspronkelijke einddatum',
+    zelfdeEind ? `JA — eindigt nog steeds op ${tijd(kortingVoor?.end)}` : 'NEE — de looptijd is verschoven',
+    `vóór ${tijd(kortingVoor?.end)} · ná plannen ${tijd(kortingNaPlannen?.end)} · ná de wissel ${tijd(kortingNaWissel?.end)}` +
+      ` · zelfde korting-id: ${kortingVoor?.id === kortingNaWissel?.id ? 'ja' : `nee (${kortingVoor?.id} → ${kortingNaWissel?.id})`}`,
   );
 }
 
@@ -457,11 +483,10 @@ async function scenarioB5() {
   console.log('  facturen (nieuwste eerst):');
   facturen.forEach(toonFactuur);
   const nieuw = facturen[0];
-  const verwacht = belasting ? 3025 : 2500;
   bevinding(
     'B5 factuur op het wisselmoment (betaalde periode)',
-    naWissel.plan === 'basic' && nieuw.total === verwacht && nieuw.lines.data.length === 1 && facturen.length === facturenVoor + 1
-      ? `JA — één nieuwe factuur, één regel, ${euro(nieuw.total)}, geen verrekening`
+    naWissel.plan === 'basic' && netto(nieuw) === 2500 && nieuw.lines.data.length === 1 && facturen.length === facturenVoor + 1
+      ? `JA — één nieuwe factuur, één regel, ${euro(netto(nieuw))} excl. btw, geen verrekening`
       : 'AFWIJKEND',
     `plan=${naWissel.plan} totaal=${euro(nieuw.total)} regels=${nieuw.lines.data.length} facturen ${facturenVoor}→${facturen.length}`,
   );
@@ -523,8 +548,8 @@ async function scenarioB6() {
   toonFactuur(facturen[0]);
   bevinding(
     'B6 ná intrekken loopt Premium gewoon door',
-    eind.plan === 'premium' && facturen[0].total === (belasting ? 5445 : 4500) ? 'JA' : 'AFWIJKEND',
-    `plan=${eind.plan} status=${eind.status} factuur=${euro(facturen[0].total)}`,
+    eind.plan === 'premium' && netto(facturen[0]) === 4500 ? 'JA — factuur Premium, €45,00 excl. btw' : 'AFWIJKEND',
+    `plan=${eind.plan} status=${eind.status} factuur=${euro(netto(facturen[0]))} excl. btw`,
   );
 }
 
@@ -594,18 +619,75 @@ async function scenarioU() {
         `nieuwe factuur ${euro(nieuw.total)} status=${nieuw.status} billing_reason=${nieuw.billing_reason} — ` +
           (direct.status === 'past_due' ? 'past_due BEVESTIGD: de waarschuwingsbalk zou verschijnen' : 'geen past_due'),
       );
-      await klokNaar(omgeving.clock.id, halverwege + 8 * DAG, 'dag 23');
-      const later = foto(await stripe.subscriptions.retrieve(sub.id));
-      const factuurLater = (await laatsteFactuur(sub.id))[0];
-      bevinding('U-a acht dagen later', `status=${later.status}`, `factuur status=${factuurLater.status}`);
+      // Een test-incasso rondt af op ECHTE tijd, niet op kloktijd (scenario P).
+      // Dus hier wachten, niet de klok vooruitzetten.
+      let later;
+      let factuurLater;
+      for (let i = 0; i < 16; i++) {
+        await new Promise((r) => setTimeout(r, 15_000));
+        later = foto(await stripe.subscriptions.retrieve(sub.id));
+        factuurLater = (await laatsteFactuur(sub.id)).find((f) => f.id === nieuw.id);
+        if (factuurLater.status === 'paid') break;
+      }
+      bevinding(
+        'U-a zodra de incasso is geslaagd',
+        `status=${later.status}`,
+        `factuur status=${factuurLater.status} — ` +
+          (later.status === 'active' && factuurLater.status === 'paid'
+            ? 'past_due duurt precies zo lang als de incasso onderweg is (live: dagen)'
+            : 'niet teruggekeerd naar active binnen de wachttijd'),
+      );
     }
     console.log('  events (oudste eerst):');
     await toonEvents(t0 - 60, sub.id);
   }
 }
 
+/**
+ * Controle van de meetopzet. In de andere scenario's bleven facturen `open`
+ * staan. Dat kan betekenen dat de incasso nog onderweg is, of dat hij in deze
+ * opzet nooit afrondt. Zonder dat te weten is "acht dagen later nog past_due"
+ * niet te duiden.
+ */
+async function scenarioP() {
+  const t0 = Math.floor(Date.now() / 1000);
+  const omgeving = await maakKlant('P incasso', t0);
+  const sub = await maakAbonnement(omgeving, 'basic');
+
+  const stand = async (label) => {
+    const s = await stripe.subscriptions.retrieve(sub.id);
+    const factuur = (await laatsteFactuur(sub.id))[0];
+    const metBetalingen = await stripe.invoices.retrieve(factuur.id, { expand: ['payments'] });
+    const betaling = metBetalingen.payments?.data?.[0];
+    const piId = betaling?.payment?.payment_intent;
+    const pi = piId ? await stripe.paymentIntents.retrieve(typeof piId === 'string' ? piId : piId.id) : null;
+    console.log(
+      `  ${label.padEnd(10)} abonnement=${s.status}  factuur=${factuur.status}  betaling=${betaling?.status ?? '—'}  ` +
+        `incasso=${pi?.status ?? '—'}${pi?.last_payment_error ? `  fout=${pi.last_payment_error.code}` : ''}`,
+    );
+    return { sub: s.status, factuur: factuur.status, incasso: pi?.status ?? null };
+  };
+
+  const begin = await stand('direct');
+  await klokNaar(omgeving.clock.id, t0 + 3 * DAG, 'dag 3');
+  await stand('dag 3');
+  await klokNaar(omgeving.clock.id, t0 + 10 * DAG, 'dag 10');
+  const dag10 = await stand('dag 10');
+  // Echte tijd laten verstrijken: rondt Stripe de test-incasso dan af?
+  await new Promise((r) => setTimeout(r, 90_000));
+  const naWachten = await stand('+90s echt');
+
+  bevinding(
+    'P rondt een SEPA-incasso af in deze meetopzet?',
+    naWachten.factuur === 'paid' || dag10.factuur === 'paid'
+      ? `JA — ${dag10.factuur === 'paid' ? 'na het vooruitzetten van de klok' : 'pas na echte wachttijd'}`
+      : 'NEE — de factuur blijft open',
+    `direct: incasso=${begin.incasso} factuur=${begin.factuur} · dag 10: incasso=${dag10.incasso} factuur=${dag10.factuur} · ná 90s: incasso=${naWachten.incasso} factuur=${naWachten.factuur}`,
+  );
+}
+
 // ── Draaien ─────────────────────────────────────────────────────────────────
-const UITVOERDERS = { B1: scenarioB1, B2: scenarioB2, B3: scenarioB3, B5: scenarioB5, B6: scenarioB6, U: scenarioU };
+const UITVOERDERS = { B1: scenarioB1, B2: scenarioB2, B3: scenarioB3, B5: scenarioB5, B6: scenarioB6, U: scenarioU, P: scenarioP };
 const mislukt = [];
 
 try {
@@ -637,7 +719,8 @@ try {
   for (const b of bevindingen) {
     console.log(`\n• ${b.vraag}\n  → ${b.uitkomst}${b.detail ? `\n    ${b.detail}` : ''}`);
   }
-  if (!belasting) console.log('\nLet op: gemeten ZONDER automatische btw; bedragen zijn excl. btw.');
+  console.log('\nLet op: de testomgeving rekent 0% btw (geen registratie); live komt er 21% bij. Bedragen hierboven zijn excl. btw.');
+  if (!belasting) console.log('Automatische btw stond in deze run uit.');
   if (mislukt.length) console.log(`\nAfgebroken: ${mislukt.join(', ')}`);
 }
 
