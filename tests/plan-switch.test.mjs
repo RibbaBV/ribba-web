@@ -72,6 +72,29 @@ test('200 zonder success:true geldt niet als gelukt', async () => {
   assert.equal(r.ok, false);
 });
 
+test('half antwoord: scheduled ontbreekt, of true zonder leesbare datum → fout, geen "gelukt"', async () => {
+  for (const body of [{ success: true }, { success: true, scheduled: 'ja' }, { success: true, scheduled: true }, { success: true, scheduled: true, switch_at: 'morgen' }]) {
+    const { fn } = fakeFetch(200, body);
+    const r = await callChangePlan({ supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, action: 'status', fetchImpl: fn });
+    assert.deepEqual(r, { ok: false, error: GENERIC_SWITCH_ERROR, kind: 'definitive' }, JSON.stringify(body));
+  }
+});
+
+test('time-out: een hangende aanroep wordt afgebroken en geldt als netwerkfout', async () => {
+  const hangt = (_url, init) => new Promise((_resolve, reject) => {
+    init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+  });
+  const r = await callChangePlan({ supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, action: 'status', fetchImpl: hangt, timeoutMs: 20 });
+  assert.deepEqual(r, { ok: false, error: NETWORK_SWITCH_ERROR, kind: 'network' });
+});
+
+test('/upgrade: na een mislukte wissel of terugdraai wordt de stand opnieuw bij Stripe gelezen', () => {
+  const src = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
+  const fout = src.indexOf('if (!result.ok) {', src.indexOf('const runSwitch'));
+  const herlezen = src.indexOf("action: 'status'", fout);
+  assert.ok(fout > 0 && herlezen > fout && herlezen < src.indexOf('return;', fout + 200) + 50);
+});
+
 test('netwerkfout → kind network (zelfde poging mag hervatten)', async () => {
   const r = await callChangePlan({
     supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, action: 'schedule', attemptId: 'a',

@@ -351,6 +351,12 @@ function UpgradeContent() {
     if (!result.ok) {
       if (result.kind === 'definitive') switchAttemptRef.current = null;
       setError(result.error);
+      // De uitkomst kan onzeker zijn (antwoord kwijt, time-out): Stripe kan de
+      // wijziging tóch hebben doorgevoerd. Vraag de stand opnieuw op in plaats
+      // van de oude te blijven tonen; lukt dat niet, dan is hij onbekend en
+      // verdwijnt de knop.
+      const herlezen = await callChangePlan({ supabaseUrl, accessToken: token, schoolId, action: 'status' });
+      setSwitchStatus(statusFromResult(herlezen));
       setSwitching(null);
       return;
     }

@@ -26,6 +26,9 @@ export const GENERIC_SWITCH_ERROR =
 export const NETWORK_SWITCH_ERROR =
   'Kan geen verbinding maken. Controleer je internet en probeer het opnieuw.';
 
+/** Hoe lang de pagina op Stripe wacht. Daarna geldt het als netwerkfout. */
+export const SWITCH_TIMEOUT_MS = 15_000;
+
 export function changePlanFunctionUrl(supabaseUrl: string): string {
   return `${supabaseUrl.replace(/\/$/, '')}/functions/v1/stripe-change-plan`;
 }
@@ -46,6 +49,7 @@ export async function callChangePlan(opts: {
   action: PlanSwitchAction;
   attemptId?: string;
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }): Promise<PlanSwitchResult> {
   const doFetch = opts.fetchImpl ?? fetch;
   const body: Record<string, string> = { school_id: opts.schoolId, action: opts.action };
@@ -54,6 +58,9 @@ export async function callChangePlan(opts: {
     if (opts.attemptId) body.attempt_id = opts.attemptId;
   }
 
+  // Begrensd: een hangende aanroep mag de pagina niet eindeloos laten laden.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? SWITCH_TIMEOUT_MS);
   let res: Response;
   try {
     res = await doFetch(changePlanFunctionUrl(opts.supabaseUrl), {
@@ -63,8 +70,10 @@ export async function callChangePlan(opts: {
         Authorization: `Bearer ${opts.accessToken}`,
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
   } catch {
+    clearTimeout(timer);
     return { ok: false, error: NETWORK_SWITCH_ERROR, kind: 'network' };
   }
 
@@ -73,6 +82,8 @@ export async function callChangePlan(opts: {
     data = await res.json();
   } catch {
     // lege/onleesbare body → generieke melding hieronder
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!res.ok || data.success !== true) {
@@ -81,11 +92,20 @@ export async function callChangePlan(opts: {
       : GENERIC_SWITCH_ERROR;
     return { ok: false, error: serverError, kind: 'definitive' };
   }
-  return {
-    ok: true,
-    scheduled: data.scheduled === true,
-    switchAt: typeof data.switch_at === 'string' ? data.switch_at : null,
-  };
+  // Alleen een eenduidig antwoord telt als gelukt: `scheduled` is een boolean,
+  // en bij `true` hoort een leesbare datum. Al het andere is een fout, zodat de
+  // pagina nooit op een half antwoord een knop of een datum toont.
+  if (typeof data.scheduled !== 'boolean') {
+    return { ok: false, error: GENERIC_SWITCH_ERROR, kind: 'definitive' };
+  }
+  if (data.scheduled) {
+    const switchAt = typeof data.switch_at === 'string' ? data.switch_at : '';
+    if (!switchAt || Number.isNaN(Date.parse(switchAt))) {
+      return { ok: false, error: GENERIC_SWITCH_ERROR, kind: 'definitive' };
+    }
+    return { ok: true, scheduled: true, switchAt };
+  }
+  return { ok: true, scheduled: false, switchAt: null };
 }
 
 /**
