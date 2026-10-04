@@ -24,6 +24,7 @@ import {
   type UpgradePreview,
 } from '@/lib/plan-switch';
 import Link from 'next/link';
+import { naOpzeggenTekst, OPZEGGEN_TEKST } from '@/lib/offboarding';
 
 const basicPricing = getPlanPricing('basic');
 const premiumPricing = getPlanPricing('premium');
@@ -866,6 +867,10 @@ function UpgradeContent() {
               <> Je hebt toegang tot <strong>{new Date(periodEnd).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.</>
             )}
             {!periodEnd && ' Je hebt nog toegang tot het einde van de huidige betaalperiode.'}
+            {/* A4: daarna 30 dagen downloaden, dan gaat alles weg (besluit 4 okt 2026). */}
+            {naOpzeggenTekst(periodEnd) && (
+              <div style={{ marginTop: 8 }}>{naOpzeggenTekst(periodEnd)}</div>
+            )}
           </div>
         )}
 
@@ -893,7 +898,7 @@ function UpgradeContent() {
       {showCancelModal && (
         <ConfirmModal
           title="Abonnement opzeggen?"
-          body="Je houdt toegang tot het einde van je huidige betaalperiode. Daarna stopt je abonnement en kun je opnieuw kiezen."
+          body={OPZEGGEN_TEKST}
           confirmLabel="Ja, opzeggen"
           confirmColor="#DC2626"
           onCancel={() => setShowCancelModal(false)}
@@ -997,7 +1002,7 @@ function ConfirmModal({
         >
           {title}
         </h2>
-        <p style={{ fontSize: 15, color: '#57534E', lineHeight: 1.55, margin: '0 0 24px' }}>
+        <p style={{ fontSize: 15, color: '#57534E', lineHeight: 1.55, margin: '0 0 24px', whiteSpace: 'pre-line' }}>
           {body}
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
