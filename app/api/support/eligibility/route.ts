@@ -30,15 +30,16 @@
 // Dit endpoint geeft geen supportdata, op geen enkel niveau — alleen een
 // boolean over je eigen account.
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getServiceClient } from '@/lib/support-auth';
 import { rateLimit } from '@/lib/rate-limit';
+import { supportJson } from '@/lib/support-response';
 
 export const dynamic = 'force-dynamic';
 
 /** Altijd dezelfde vorm, zodat een statuscode niets extra's verraadt. */
 function antwoord(eligible: boolean, status = 200) {
-  return NextResponse.json({ eligible }, { status });
+  return supportJson({ eligible }, status);
 }
 
 export async function GET(request: NextRequest) {

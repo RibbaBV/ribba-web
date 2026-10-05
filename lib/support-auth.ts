@@ -25,8 +25,9 @@
 // gebruikt. Alleen kijken óf iemand 2FA heeft ingesteld is niet genoeg — dan
 // zou een gestolen wachtwoord nog steeds volstaan.
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, type NextResponse } from 'next/server';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { supportJson } from './support-response';
 
 export type SupportLevel = 0 | 1 | 2;
 
@@ -133,14 +134,14 @@ export async function withSupportAccess<T>(
   if (!authHeader?.startsWith('Bearer ')) {
     // Niets te loggen: zonder geldig token is er geen persoon om aan toe te
     // schrijven, en een logboek dat volloopt met anonieme ruis is onbruikbaar.
-    return NextResponse.json({ error: 'Niet ingelogd.' }, { status: 401 });
+    return supportJson({ error: 'Niet ingelogd.' }, 401);
   }
   const token = authHeader.slice('Bearer '.length);
 
   const supabase = getServiceClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser(token);
   if (authError || !user) {
-    return NextResponse.json({ error: 'Ongeldige sessie.' }, { status: 401 });
+    return supportJson({ error: 'Ongeldige sessie.' }, 401);
   }
 
   const email = user.email ?? null;
@@ -158,7 +159,7 @@ export async function withSupportAccess<T>(
     } catch {
       // Logboek stuk én toegang geweigerd: de weigering staat hoe dan ook.
     }
-    return NextResponse.json({ error: 'Geen toegang.' }, { status });
+    return supportJson({ error: 'Geen toegang.' }, status);
   };
 
   if (readAal(token) !== 'aal2') {
@@ -191,15 +192,15 @@ export async function withSupportAccess<T>(
   } catch (e) {
     // Geen logregel, geen data.
     console.error('[support] logboek niet beschikbaar — toegang geweigerd', e);
-    return NextResponse.json(
+    return supportJson(
       { error: 'Toegang tijdelijk niet mogelijk: het logboek is niet beschikbaar.' },
-      { status: 503 },
+      503,
     );
   }
 
   try {
     const data = await handler({ user, supabase });
-    return NextResponse.json(data);
+    return supportJson(data);
   } catch (e) {
     try {
       await writeLog(supabase, req, {
@@ -213,6 +214,6 @@ export async function withSupportAccess<T>(
       // De 'ok'-regel staat er al; deze aanvulling is een extraatje.
     }
     console.error(`[support] ${spec.action} faalde`, e);
-    return NextResponse.json({ error: 'Er ging iets mis.' }, { status: 500 });
+    return supportJson({ error: 'Er ging iets mis.' }, 500);
   }
 }
