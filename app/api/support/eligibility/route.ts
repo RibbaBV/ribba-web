@@ -43,60 +43,66 @@ function antwoord(eligible: boolean, status = 200) {
 }
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return antwoord(false, 401);
-  const token = authHeader.slice('Bearer '.length);
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) return antwoord(false, 401);
+    const token = authHeader.slice('Bearer '.length);
 
-  // Per IP, niet per account: het account is op dit punt nog niet vastgesteld.
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
-  if (!rateLimit(`support-eligibility:${ip}`, { maxRequests: 20, windowMs: 60_000 })) {
-    return antwoord(false, 429);
-  }
-
-  const supabase = getServiceClient();
-
-  // Uitsluitend het token telt. Wat er in de query of body staat wordt nooit
-  // gelezen — anders zou dit een oracle worden waarmee je willekeurige
-  // user-id's op stafflidmaatschap kunt testen.
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) return antwoord(false, 401);
-
-  const { data: isStaff, error: staffError } = await supabase.rpc('is_platform_staff', {
-    p_user_id: user.id,
-  });
-
-  // Fail closed: een kapotte lookup is geen "ja".
-  if (staffError) return antwoord(false, 500);
-
-  const eligible = isStaff === true;
-
-  // Best-effort, en bewust alleen bij een weigering.
-  //
-  // Loggen blokkeert hier NIET, anders houdt een logstoring een legitieme
-  // supportmedewerker zonder factor permanent uit zijn enrollment — en juist
-  // dan is het herstelrunbook ook niet bruikbaar. Op het datavlak blijft
-  // "geen logregel, geen data" onverkort gelden; daar wordt wél data
-  // vrijgegeven en hier niet.
-  //
-  // Alleen weigeringen, want elke paginalading van een supportmedewerker in het
-  // toegangslogboek schrijven maakt dat logboek juist minder bruikbaar als
-  // verantwoording over inzage in klantgegevens.
-  if (!eligible) {
-    try {
-      await supabase.from('platform_access_log').insert({
-        staff_user_id: user.id,
-        staff_email: user.email ?? null,
-        action: 'support.eligibility',
-        level: 0,
-        result: 'denied',
-        ip,
-        user_agent: request.headers.get('user-agent'),
-        meta: { denied_reason: 'not_platform_staff' },
-      });
-    } catch {
-      // Bewust genegeerd. Zie de toelichting hierboven.
+    // Per IP, niet per account: het account is op dit punt nog niet vastgesteld.
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
+    if (!rateLimit(`support-eligibility:${ip}`, { maxRequests: 20, windowMs: 60_000 })) {
+      return antwoord(false, 429);
     }
-  }
 
-  return antwoord(eligible);
+    const supabase = getServiceClient();
+
+    // Uitsluitend het token telt. Wat er in de query of body staat wordt nooit
+    // gelezen — anders zou dit een oracle worden waarmee je willekeurige
+    // user-id's op stafflidmaatschap kunt testen.
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) return antwoord(false, 401);
+
+    const { data: isStaff, error: staffError } = await supabase.rpc('is_platform_staff', {
+      p_user_id: user.id,
+    });
+
+    // Fail closed: een kapotte lookup is geen "ja".
+    if (staffError) return antwoord(false, 500);
+
+    const eligible = isStaff === true;
+
+    // Best-effort, en bewust alleen bij een weigering.
+    //
+    // Loggen blokkeert hier NIET, anders houdt een logstoring een legitieme
+    // supportmedewerker zonder factor permanent uit zijn enrollment — en juist
+    // dan is het herstelrunbook ook niet bruikbaar. Op het datavlak blijft
+    // "geen logregel, geen data" onverkort gelden; daar wordt wél data
+    // vrijgegeven en hier niet.
+    //
+    // Alleen weigeringen, want elke paginalading van een supportmedewerker in het
+    // toegangslogboek schrijven maakt dat logboek juist minder bruikbaar als
+    // verantwoording over inzage in klantgegevens.
+    if (!eligible) {
+      try {
+        await supabase.from('platform_access_log').insert({
+          staff_user_id: user.id,
+          staff_email: user.email ?? null,
+          action: 'support.eligibility',
+          level: 0,
+          result: 'denied',
+          ip,
+          user_agent: request.headers.get('user-agent'),
+          meta: { denied_reason: 'not_platform_staff' },
+        });
+      } catch {
+        // Bewust genegeerd. Zie de toelichting hierboven.
+      }
+    }
+
+    return antwoord(eligible);
+  } catch {
+    // Ook onverwachte configuratie- of verbindingsfouten blijven fail-closed
+    // en gebruiken het expliciete cacheverbod van supportJson.
+    return antwoord(false, 500);
+  }
 }
