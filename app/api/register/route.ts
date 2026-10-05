@@ -1,3 +1,4 @@
+import { ribbaLogoHtml } from '@/lib/email-store-badges';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rateLimit } from '@/lib/rate-limit';
@@ -222,9 +223,7 @@ export async function POST(request: NextRequest) {
       `Bevestiging inschrijving bij ${escapeHtml(school.name)}`,
       `
       <div style="font-family: Inter, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
-        <div style="background: #0d9488; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px;">
-          <span style="color: #fff; font-weight: 900; font-size: 20px;">R</span>
-        </div>
+        <div style="margin-bottom: 24px;">${ribbaLogoHtml()}</div>
         <h1 style="font-size: 24px; font-weight: 800; color: #1e293b; margin-bottom: 16px;">Inschrijving ontvangen 🎉</h1>
         <p style="color: #64748b; line-height: 1.6; font-size: 15px;">
           Hoi ${escapeHtml(first_name)},<br><br>
@@ -258,9 +257,7 @@ export async function POST(request: NextRequest) {
         `Nieuwe inschrijving: ${escapeHtml(first_name)} ${escapeHtml(last_name)}`,
         `
         <div style="font-family: Inter, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
-          <div style="background: #0d9488; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px;">
-            <span style="color: #fff; font-weight: 900; font-size: 20px;">R</span>
-          </div>
+          <div style="margin-bottom: 24px;">${ribbaLogoHtml()}</div>
           <h1 style="font-size: 24px; font-weight: 800; color: #1e293b; margin-bottom: 16px;">Nieuwe inschrijving</h1>
           <p style="color: #64748b; line-height: 1.6; font-size: 15px;">
             Er is een nieuwe leerling aangemeld via de website.
