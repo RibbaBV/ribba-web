@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["486FCW8KK7.app.ribba.pro"],
+        "appIDs": ["486FCW8KK7.app.ribba.pro", "Y493BAJAJG.app.ribba.pro"],
         "components": [
           { "/": "/upgrade", "exclude": true, "comment": "checkout moet in browser openen, niet in de app" },
           { "/": "/login", "exclude": true, "comment": "website-login" },
@@ -22,6 +22,6 @@
     ]
   },
   "webcredentials": {
-    "apps": ["486FCW8KK7.app.ribba.pro"]
+    "apps": ["486FCW8KK7.app.ribba.pro", "Y493BAJAJG.app.ribba.pro"]
   }
 }
