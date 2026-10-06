@@ -12,50 +12,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import SchoolOverview from './school-overview';
 import RibbaLogo from '../../components/RibbaLogo';
+import type { School } from './school';
 import { getSupabase, useSupportToken } from './client';
 import { hasFreshSupportMfa } from '@/lib/support-session';
 import { kiesFactorpad, type Factoroptie } from '@/lib/support-factorkeuze';
 
 type Fase = 'laden' | 'login' | 'geen-toegang' | 'tweefactor-instellen' | 'tweefactor-kiezen' | 'tweefactor-invoeren' | 'portaal';
 
-interface School {
-  school_id: string;
-  school_name: string;
-  city: string | null;
-  status: string | null;
-  is_internal: boolean;
-  created_at: string;
-  registration_enabled: boolean;
-  welcome_email_sent_at: string | null;
-  instructeurs: number;
-  leerlingen: number;
-  lestypes: number;
-  beschikbaarheid: number;
-  pakketten: number;
-  voertuigen: number;
-  lessen: number;
-  facturen: number;
-  abonnement_status: string | null;
-  cbr_koppeling: string | null;
-  laatste_activiteit: string | null;
-  onboarding_gereed: boolean;
-}
-
-function datum(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('nl-NL', {
-    day: 'numeric', month: 'short', year: 'numeric',
-  });
-}
-
-function dagenGeleden(iso: string | null): string {
-  if (!iso) return 'nooit';
-  const dagen = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
-  if (dagen <= 0) return 'vandaag';
-  if (dagen === 1) return 'gisteren';
-  return `${dagen} dagen geleden`;
-}
 
 export default function SupportPage() {
   const { token, status, isCurrentToken } = useSupportToken();
@@ -356,85 +321,8 @@ export default function SupportPage() {
     );
   }
 
-  return (
-    <div style={s.pagina}>
-      <header style={s.header}>
-        <div style={s.headerLinks}>
-          <RibbaLogo height={26} />
-          <span style={s.headerTitel}>Support</span>
-        </div>
-        <button style={s.tekstknop} onClick={uitloggen}>Uitloggen</button>
-      </header>
-
-      <div style={s.balk}>
-        <p style={s.uitleg}>
-          Niveau 0 — gegevens van de rijschool en aantallen. Geen gegevens van
-          leerlingen. Elke keer dat je dit scherm opent, wordt dat vastgelegd.
-        </p>
-        <label style={s.vinkje}>
-          <input type="checkbox" checked={toonIntern}
-            onChange={(e) => setToonIntern(e.target.checked)} />
-          Toon testscholen
-        </label>
-      </div>
-
-      {fout && <p style={s.fout}>{fout}</p>}
-
-      <div style={s.tabelWrap}>
-        <table style={s.tabel}>
-          <thead>
-            <tr>
-              <th style={s.th}>Rijschool</th>
-              <th style={s.th}>Ingeschreven</th>
-              <th style={s.th}>Laatst actief</th>
-              <th style={s.thNum}>Instr.</th>
-              <th style={s.thNum}>Leerl.</th>
-              <th style={s.thNum}>Lestypes</th>
-              <th style={s.thNum}>Beschikb.</th>
-              <th style={s.thNum}>Lessen</th>
-              <th style={s.th}>Abonnement</th>
-              <th style={s.th} title="Alleen getoond als de koppeling is ingericht">CBR</th>
-              <th style={s.th} title="Minstens één ingeschakeld lestype">Lesklaar</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scholen.map((school) => (
-              <tr key={school.school_id}>
-                <td style={s.td}>
-                  <Link href={`/support/${school.school_id}`} style={s.schoolLink}>
-                    {school.school_name}
-                  </Link>
-                  {school.is_internal && <span style={s.intern}>intern</span>}
-                  {school.city && <span style={s.stad}> · {school.city}</span>}
-                </td>
-                <td style={s.td}>{datum(school.created_at)}</td>
-                <td style={s.td}>{dagenGeleden(school.laatste_activiteit)}</td>
-                <td style={s.tdNum}>{school.instructeurs}</td>
-                <td style={s.tdNum}>{school.leerlingen}</td>
-                <td style={s.tdNum}>{school.lestypes}</td>
-                <td style={s.tdNum}>{school.beschikbaarheid}</td>
-                <td style={s.tdNum}>{school.lessen}</td>
-                <td style={s.td}>{school.abonnement_status ?? '—'}</td>
-                <td style={s.td}>
-                  {school.cbr_koppeling === 'uit'
-                    ? <span style={s.badgeFout}>uit</span>
-                    : (school.cbr_koppeling ?? '—')}
-                </td>
-                <td style={s.td}>
-                  <span style={school.onboarding_gereed ? s.badgeOk : s.badgeLet}>
-                    {school.onboarding_gereed ? 'ja' : 'nee'}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {scholen.length === 0 && !fout && (
-              <tr><td style={s.td} colSpan={10}>Geen rijscholen gevonden.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  return <SchoolOverview scholen={scholen} fout={fout} toonIntern={toonIntern}
+    onToonIntern={setToonIntern} onUitloggen={uitloggen} />;
 }
 
 const s: Record<string, React.CSSProperties> = {
@@ -445,27 +333,6 @@ const s: Record<string, React.CSSProperties> = {
   kaart: {
     background: '#fff', borderRadius: 16, padding: 32, width: '100%', maxWidth: 400,
     boxShadow: '0 1px 3px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: 4,
-  },
-  pagina: { minHeight: '100vh', background: '#F8FAFC', padding: 24 },
-  header: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 8, flexWrap: 'wrap', gap: 12,
-  },
-  headerLinks: { display: 'flex', alignItems: 'center', gap: 12 },
-  headerTitel: { fontSize: 18, fontWeight: 600, color: '#0F172A' },
-  h1: { fontSize: 22, fontWeight: 700, color: '#0F172A', margin: '12px 0 4px' },
-  uitleg: { fontSize: 13, color: '#64748B', margin: 0, maxWidth: 720 },
-  balk: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    gap: 16, flexWrap: 'wrap', margin: '0 0 20px',
-  },
-  vinkje: {
-    display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
-    color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap',
-  },
-  intern: {
-    marginLeft: 8, background: '#EEF2FF', color: '#3730A3', padding: '1px 8px',
-    borderRadius: 999, fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
   },
   stil: { fontSize: 14, color: '#64748B', margin: '0 0 16px' },
   input: {
@@ -483,38 +350,4 @@ const s: Record<string, React.CSSProperties> = {
   fout: { color: '#B91C1C', fontSize: 14, marginTop: 12 },
   qr: { width: 200, height: 200, alignSelf: 'center', margin: '8px 0' },
   geheim: { fontSize: 12, color: '#64748B', wordBreak: 'break-all', margin: '0 0 8px' },
-  tabelWrap: {
-    overflowX: 'auto', background: '#fff', borderRadius: 14,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-  },
-  tabel: { width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 900 },
-  th: {
-    textAlign: 'left', padding: '12px 14px', fontSize: 12, fontWeight: 600,
-    color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.4,
-    borderBottom: '1px solid #E2E8F0', whiteSpace: 'nowrap',
-  },
-  thNum: {
-    textAlign: 'right', padding: '12px 14px', fontSize: 12, fontWeight: 600,
-    color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.4,
-    borderBottom: '1px solid #E2E8F0', whiteSpace: 'nowrap',
-  },
-  td: { padding: '12px 14px', borderBottom: '1px solid #F1F5F9', color: '#0F172A' },
-  tdNum: {
-    padding: '12px 14px', borderBottom: '1px solid #F1F5F9',
-    color: '#0F172A', textAlign: 'right', fontVariantNumeric: 'tabular-nums',
-  },
-  stad: { color: '#64748B', fontWeight: 400 },
-  schoolLink: { color: '#0F172A', fontWeight: 700, textDecoration: 'none' },
-  badgeOk: {
-    background: '#DCFCE7', color: '#166534', padding: '2px 10px',
-    borderRadius: 999, fontSize: 12, fontWeight: 600,
-  },
-  badgeFout: {
-    background: '#FEE2E2', color: '#991B1B', padding: '2px 10px',
-    borderRadius: 999, fontSize: 12, fontWeight: 600,
-  },
-  badgeLet: {
-    background: '#FEF3C7', color: '#92400E', padding: '2px 10px',
-    borderRadius: 999, fontSize: 12, fontWeight: 600,
-  },
 };
