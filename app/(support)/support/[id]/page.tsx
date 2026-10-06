@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { use } from 'react';
 import { useSupportToken } from '../client';
+import { withCbrRecovery, type SupportEvent } from '@/lib/support-event-recovery';
 
 interface Stap {
   sleutel: string;
@@ -74,13 +75,6 @@ interface Detail {
   onboarding: Stap[];
 }
 
-interface Gebeurtenis {
-  wanneer: string | null;
-  bron: string;
-  soort: string;
-  ok: boolean;
-  detail: string | null;
-}
 
 function moment(iso: string | null): string {
   if (!iso) return '—';
@@ -138,7 +132,7 @@ export default function SchoolDetailPagina({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const { token, status, isCurrentToken } = useSupportToken();
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [events, setEvents] = useState<Gebeurtenis[]>([]);
+  const [events, setEvents] = useState<SupportEvent[]>([]);
   const [fout, setFout] = useState('');
   const [geweigerd, setGeweigerd] = useState(false);
   const [weergaveVoor, setWeergaveVoor] = useState({ token, id });
@@ -374,7 +368,8 @@ export default function SchoolDetailPagina({ params }: { params: Promise<{ id: s
         <h2 style={s.h2}>Gebeurtenissen</h2>
         <p style={s.voetnoot}>
           Facturatie, webhooks, CBR en SnelStart. Van de CBR-synchronisatie
-          alleen de momenten waarop hij omsloeg — die draait elk uur.
+          alleen de momenten waarop hij omsloeg — die draait elk uur. Een fout krijgt
+          het label Hersteld zodra een latere geslaagde run van hetzelfde type is vastgelegd.
         </p>
         <div style={s.tabelWrap}>
           <table style={s.tabel}>
@@ -383,15 +378,20 @@ export default function SchoolDetailPagina({ params }: { params: Promise<{ id: s
                 <th style={s.th}>Soort</th><th style={s.th}>Details</th></tr>
             </thead>
             <tbody>
-              {events.map((e, n) => (
-                <tr key={n} style={e.ok ? undefined : s.rijFout}>
+              {withCbrRecovery(events).map((e, n) => (
+                <tr key={n} style={e.ok || e.hersteldOp ? undefined : s.rijFout}>
                   <td style={s.td}>{moment(e.wanneer)}</td>
                   <td style={s.td}>{e.bron}</td>
                   <td style={s.td}>
-                    {!e.ok && <span style={s.foutBadge}>fout</span>}
+                    {!e.ok && <span style={e.hersteldOp ? s.hersteldBadge : s.foutBadge}>
+                      {e.hersteldOp ? 'Hersteld' : 'Fout'}
+                    </span>}
                     {e.soort}
                   </td>
-                  <td style={s.tdDetail}>{e.detail ?? '—'}</td>
+                  <td style={s.tdDetail}>
+                    {e.detail ?? '—'}
+                    {e.hersteldOp && <div style={s.herstelMoment}>Hersteld op {moment(e.hersteldOp)}</div>}
+                  </td>
                 </tr>
               ))}
               {events.length === 0 && (
@@ -462,6 +462,11 @@ const s: Record<string, React.CSSProperties> = {
   signaalInfo: {
     background: '#EFF6FF', color: '#1E40AF', padding: '10px 14px',
     borderRadius: 10, fontSize: 14, marginBottom: 20,
+  },
+  herstelMoment: { color: '#166534', fontSize: 13, marginTop: 4 },
+  hersteldBadge: {
+    background: '#DCFCE7', color: '#166534', padding: '1px 7px', borderRadius: 999,
+    fontSize: 11, fontWeight: 600, marginRight: 8,
   },
   foutBadge: {
     background: '#FEE2E2', color: '#991B1B', padding: '1px 7px', borderRadius: 999,
