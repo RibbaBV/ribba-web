@@ -32,6 +32,12 @@ import { hasFreshSupportMfa } from './support-session';
 
 export type SupportLevel = 0 | 1 | 2;
 
+/** Alleen expliciet veilige meldingen uit onze eigen handlers bereiken de UI. */
+export class SupportRequestError extends Error {
+  status: number;
+  constructor(message: string, status: number) { super(message); this.status = status; }
+}
+
 export interface AccessSpec {
   /** Korte, stabiele naam van de handeling, bv. 'schools.list'. */
   action: string;
@@ -220,6 +226,7 @@ export async function withSupportAccess<T>(
         // De 'ok'-regel staat er al; deze aanvulling is een extraatje.
       }
       console.error(`[support] ${spec.action} faalde`, e);
+      if (e instanceof SupportRequestError) return supportJson({ error: e.message }, e.status);
       return supportJson({ error: 'Er ging iets mis.' }, 500);
     }
   } catch {
