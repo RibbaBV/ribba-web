@@ -72,7 +72,10 @@ export default function SupportPage() {
   const [factorId, setFactorId] = useState('');
   const [factorOpties, setFactorOpties] = useState<Factoroptie[]>([]);
 
-  const [scholen, setScholen] = useState<School[]>([]);
+  const [schoolResultaat, setSchoolResultaat] = useState<{ token: string | null; scholen: School[] }>({ token: null, scholen: [] });
+  // Een nieuwe sessie mag nooit de scholen van de vorige sessie tonen, ook
+  // niet terwijl haar eigen verzoek nog onderweg is of wordt geweigerd.
+  const scholen = schoolResultaat.token === token ? schoolResultaat.scholen : [];
   const [toonIntern, setToonIntern] = useState(false);
 
   // Mag dit account aan de support-tweefactor beginnen? Uitsluitend de server
@@ -182,7 +185,7 @@ export default function SupportPage() {
 
   const uitloggen = async () => {
     await getSupabase().auth.signOut();
-    setScholen([]);
+    setSchoolResultaat({ token: null, scholen: [] });
     setFase('login');
   };
 
@@ -197,7 +200,7 @@ export default function SupportPage() {
       });
       if (afgebroken) return;
       if (!res.ok) {
-        setScholen([]);
+        setSchoolResultaat({ token: null, scholen: [] });
         if (res.status === 401 || res.status === 403) setFase('login');
         const body = await res.json().catch(() => ({}));
         if (afgebroken) return;
@@ -206,14 +209,14 @@ export default function SupportPage() {
       }
       const body = await res.json();
       if (afgebroken) return;
-      setScholen(body.schools ?? []);
+      setSchoolResultaat({ token, scholen: body.schools ?? [] });
     })();
     return () => { afgebroken = true; };
   }, [fase, toonIntern, token]);
 
   // Een gewijzigde auth-status wist de oude weergave vóór die wordt getoond.
   if (fase === 'portaal' && status === 'geen-toegang') {
-    setScholen([]);
+    setSchoolResultaat({ token: null, scholen: [] });
     setFout('Je supportverificatie is verlopen. Log opnieuw in en bevestig je tweede factor.');
     setFase('login');
     return null;
