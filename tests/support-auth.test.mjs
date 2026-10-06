@@ -27,10 +27,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 
 let currentClient;
 
-mock.module('@supabase/supabase-js', { namedExports: { createClient: () => currentClient } });
+mock.module('@supabase/supabase-js', { namedExports: { createClient: () => { if (currentClient instanceof Error) throw currentClient; return currentClient; } } });
 mock.module('next/server', {
   namedExports: {
-    NextResponse: { json: (body, init) => ({ body, status: init?.status ?? 200 }) },
+    NextResponse: { json: (body, init) => ({ body, status: init?.status ?? 200, headers: new Headers(init?.headers) }) },
     NextRequest: class NextRequest {},
   },
 });
@@ -353,3 +353,21 @@ test('/api/support/schools zonder tweede factor geeft niets prijs', async () => 
   assert.equal(res.status, 403);
   assert.ok(!JSON.stringify(res.body).includes('Liamdrive'));
 });
+
+for (const fase of ['configuratie', 'authenticatie', 'staff-lookup']) {
+  test(`onverwachte fout bij ${fase} → 500, geen toegang en geen cache`, async () => {
+    const fout = new Error('gevoelige interne fout');
+    currentClient = makeClient();
+    if (fase === 'configuratie') currentClient = fout;
+    if (fase === 'authenticatie') currentClient.auth.getUser = async () => { throw fout; };
+    if (fase === 'staff-lookup') currentClient.rpc = async () => { throw fout; };
+    let handlerDraaide = false;
+    const res = await withSupportAccess(req(`Bearer ${token('aal2')}`), NIVEAU_0, async () => { handlerDraaide = true; return {}; });
+    assert.equal(res.status, 500);
+    assert.deepEqual(res.body, { error: 'Er ging iets mis.' });
+    assert.equal(res.headers.get('Cache-Control'), 'private, no-store, max-age=0');
+    assert.equal(res.headers.get('CDN-Cache-Control'), 'no-store');
+    assert.equal(res.headers.get('Vercel-CDN-Cache-Control'), 'no-store');
+    assert.equal(handlerDraaide, false);
+  });
+}

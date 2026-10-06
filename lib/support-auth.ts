@@ -25,8 +25,9 @@
 // gebruikt. Alleen kijken óf iemand 2FA heeft ingesteld is niet genoeg — dan
 // zou een gestolen wachtwoord nog steeds volstaan.
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, type NextResponse } from 'next/server';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { supportJson } from './support-response';
 
 export type SupportLevel = 0 | 1 | 2;
 
@@ -129,90 +130,96 @@ export async function withSupportAccess<T>(
   spec: AccessSpec,
   handler: (session: SupportSession) => Promise<T>,
 ): Promise<NextResponse> {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    // Niets te loggen: zonder geldig token is er geen persoon om aan toe te
-    // schrijven, en een logboek dat volloopt met anonieme ruis is onbruikbaar.
-    return NextResponse.json({ error: 'Niet ingelogd.' }, { status: 401 });
-  }
-  const token = authHeader.slice('Bearer '.length);
-
-  const supabase = getServiceClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Ongeldige sessie.' }, { status: 401 });
-  }
-
-  const email = user.email ?? null;
-  const deny = async (reason: string, status: number) => {
-    // Een geweigerde poging van een bekende gebruiker is juist wél
-    // interessant, dus die gaat het logboek in.
-    try {
-      await writeLog(supabase, req, {
-        ...spec,
-        staffUserId: user.id,
-        staffEmail: email,
-        result: 'denied',
-        meta: { ...(spec.meta ?? {}), denied_reason: reason },
-      });
-    } catch {
-      // Logboek stuk én toegang geweigerd: de weigering staat hoe dan ook.
-    }
-    return NextResponse.json({ error: 'Geen toegang.' }, { status });
-  };
-
-  if (readAal(token) !== 'aal2') {
-    return deny('mfa_required', 403);
-  }
-
-  const { data: isStaff, error: staffError } = await supabase.rpc('is_platform_staff', {
-    p_user_id: user.id,
-  });
-  if (staffError) {
-    return deny(`staff_lookup_failed: ${staffError.message}`, 500);
-  }
-  if (isStaff !== true) {
-    return deny('not_platform_staff', 403);
-  }
-
-  // Vanaf niveau 1 raken we persoonsgegevens van leerlingen. Dan is "waarom"
-  // geen formaliteit maar de verantwoording zelf.
-  if (spec.level >= 1 && !spec.reason?.trim()) {
-    return deny('reason_required', 400);
-  }
-
   try {
-    await writeLog(supabase, req, {
-      ...spec,
-      staffUserId: user.id,
-      staffEmail: email,
-      result: 'ok',
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      // Niets te loggen: zonder geldig token is er geen persoon om aan toe te
+      // schrijven, en een logboek dat volloopt met anonieme ruis is onbruikbaar.
+      return supportJson({ error: 'Niet ingelogd.' }, 401);
+    }
+    const token = authHeader.slice('Bearer '.length);
+
+    const supabase = getServiceClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return supportJson({ error: 'Ongeldige sessie.' }, 401);
+    }
+
+    const email = user.email ?? null;
+    const deny = async (reason: string, status: number) => {
+      // Een geweigerde poging van een bekende gebruiker is juist wél
+      // interessant, dus die gaat het logboek in.
+      try {
+        await writeLog(supabase, req, {
+          ...spec,
+          staffUserId: user.id,
+          staffEmail: email,
+          result: 'denied',
+          meta: { ...(spec.meta ?? {}), denied_reason: reason },
+        });
+      } catch {
+        // Logboek stuk én toegang geweigerd: de weigering staat hoe dan ook.
+      }
+      return supportJson({ error: 'Geen toegang.' }, status);
+    };
+
+    if (readAal(token) !== 'aal2') {
+      return deny('mfa_required', 403);
+    }
+
+    const { data: isStaff, error: staffError } = await supabase.rpc('is_platform_staff', {
+      p_user_id: user.id,
     });
-  } catch (e) {
-    // Geen logregel, geen data.
-    console.error('[support] logboek niet beschikbaar — toegang geweigerd', e);
-    return NextResponse.json(
-      { error: 'Toegang tijdelijk niet mogelijk: het logboek is niet beschikbaar.' },
-      { status: 503 },
-    );
-  }
+    if (staffError) {
+      return deny(`staff_lookup_failed: ${staffError.message}`, 500);
+    }
+    if (isStaff !== true) {
+      return deny('not_platform_staff', 403);
+    }
 
-  try {
-    const data = await handler({ user, supabase });
-    return NextResponse.json(data);
-  } catch (e) {
+    // Vanaf niveau 1 raken we persoonsgegevens van leerlingen. Dan is "waarom"
+    // geen formaliteit maar de verantwoording zelf.
+    if (spec.level >= 1 && !spec.reason?.trim()) {
+      return deny('reason_required', 400);
+    }
+
     try {
       await writeLog(supabase, req, {
         ...spec,
         staffUserId: user.id,
         staffEmail: email,
-        result: 'error',
-        meta: { ...(spec.meta ?? {}), message: e instanceof Error ? e.message : String(e) },
+        result: 'ok',
       });
-    } catch {
-      // De 'ok'-regel staat er al; deze aanvulling is een extraatje.
+    } catch (e) {
+      // Geen logregel, geen data.
+      console.error('[support] logboek niet beschikbaar — toegang geweigerd', e);
+      return supportJson(
+        { error: 'Toegang tijdelijk niet mogelijk: het logboek is niet beschikbaar.' },
+        503,
+      );
     }
-    console.error(`[support] ${spec.action} faalde`, e);
-    return NextResponse.json({ error: 'Er ging iets mis.' }, { status: 500 });
+
+    try {
+      const data = await handler({ user, supabase });
+      return supportJson(data);
+    } catch (e) {
+      try {
+        await writeLog(supabase, req, {
+          ...spec,
+          staffUserId: user.id,
+          staffEmail: email,
+          result: 'error',
+          meta: { ...(spec.meta ?? {}), message: e instanceof Error ? e.message : String(e) },
+        });
+      } catch {
+        // De 'ok'-regel staat er al; deze aanvulling is een extraatje.
+      }
+      console.error(`[support] ${spec.action} faalde`, e);
+      return supportJson({ error: 'Er ging iets mis.' }, 500);
+    }
+  } catch {
+    // Ook onverwachte configuratie- of verbindingsfouten blijven fail-closed
+    // en gebruiken het expliciete cacheverbod van supportJson.
+    return supportJson({ error: 'Er ging iets mis.' }, 500);
   }
 }
