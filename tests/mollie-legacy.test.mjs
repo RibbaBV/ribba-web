@@ -83,18 +83,18 @@ test('opzeggen is puur Stripe geworden', () => {
 // ── De productkoppeling is ongemoeid ─────────────────────────────────────────
 
 test('/pro verkoopt Mollie nog steeds als koppeling voor leerlingbetalingen', () => {
-  const pro = lees('app/pro/page.tsx');
+  const pro = lees('app/(site)/pro/page.tsx');
   assert.ok(pro.includes('Alle koppelingen (CBR, Moneybird, Mollie)'), 'de plankaarten noemen Mollie');
   assert.ok(pro.includes('iDEAL-betalingen via Mollie'), 'de featurelijst noemt iDEAL via Mollie');
   assert.ok(pro.includes('Mollie iDEAL'), 'de badge staat er nog');
 });
 
 test('/upgrade noemt de koppeling ook nog', () => {
-  assert.ok(lees('app/upgrade/page.tsx').includes('Alle koppelingen (CBR, Moneybird, Mollie)'));
+  assert.ok(lees('app/(site)/upgrade/page.tsx').includes('Alle koppelingen (CBR, Moneybird, Mollie)'));
 });
 
 test('Mollie B.V. staat nog als subverwerker in de verwerkersovereenkomst', () => {
   // Dit is een contractuele bijlage. Een subverwerker schrappen omdat een
   // opruiming te breed zocht, is een juridische wijziging zonder besluit.
-  assert.ok(lees('app/verwerkersovereenkomst/page.tsx').includes('Mollie B.V.'));
+  assert.ok(lees('app/(site)/verwerkersovereenkomst/page.tsx').includes('Mollie B.V.'));
 });
