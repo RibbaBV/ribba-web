@@ -140,6 +140,8 @@ export default function SchoolDetailPagina({ params }: { params: Promise<{ id: s
   const [detail, setDetail] = useState<Detail | null>(null);
   const [events, setEvents] = useState<Gebeurtenis[]>([]);
   const [fout, setFout] = useState('');
+  const [geweigerd, setGeweigerd] = useState(false);
+  const [weergaveVoor, setWeergaveVoor] = useState({ token, id });
 
   useEffect(() => {
     if (!token) return;
@@ -150,18 +152,31 @@ export default function SchoolDetailPagina({ params }: { params: Promise<{ id: s
       });
       if (afgebroken) return;
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) setGeweigerd(true);
         const body = await res.json().catch(() => ({}));
+        if (afgebroken) return;
         setFout(body.error ?? 'Ophalen mislukt.');
         return;
       }
       const body = await res.json();
+      if (afgebroken) return;
       setDetail(body.detail);
       setEvents(body.events ?? []);
     })();
     return () => { afgebroken = true; };
   }, [token, id]);
 
-  if (status === 'geen-toegang') {
+  // Geen data van de vorige sessie of school tonen tijdens een nieuwe aanvraag.
+  if (weergaveVoor.token !== token || weergaveVoor.id !== id) {
+    setWeergaveVoor({ token, id });
+    setDetail(null);
+    setEvents([]);
+    setGeweigerd(false);
+    setFout('');
+    return null;
+  }
+
+  if (status === 'geen-toegang' || geweigerd) {
     return (
       <div style={s.pagina}>
         <p style={s.stil}>Je sessie is verlopen of mist de tweede factor.</p>

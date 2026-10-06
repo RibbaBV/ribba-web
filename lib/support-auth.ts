@@ -28,6 +28,7 @@
 import { NextRequest, type NextResponse } from 'next/server';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { supportJson } from './support-response';
+import { hasFreshSupportMfa } from './support-session';
 
 export type SupportLevel = 0 | 1 | 2;
 
@@ -165,6 +166,10 @@ export async function withSupportAccess<T>(
 
     if (readAal(token) !== 'aal2') {
       return deny('mfa_required', 403);
+    }
+
+    if (!hasFreshSupportMfa(token)) {
+      return deny('mfa_expired', 403);
     }
 
     const { data: isStaff, error: staffError } = await supabase.rpc('is_platform_staff', {

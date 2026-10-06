@@ -13,7 +13,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import RibbaLogo from '../../components/RibbaLogo';
-import { getSupabase } from './client';
+import { getSupabase, useSupportToken } from './client';
+import { hasFreshSupportMfa } from '@/lib/support-session';
 import { kiesFactorpad, type Factoroptie } from '@/lib/support-factorkeuze';
 
 type Fase = 'laden' | 'login' | 'geen-toegang' | 'tweefactor-instellen' | 'tweefactor-kiezen' | 'tweefactor-invoeren' | 'portaal';
@@ -57,6 +58,7 @@ function dagenGeleden(iso: string | null): string {
 }
 
 export default function SupportPage() {
+  const { token, status } = useSupportToken();
   const [fase, setFase] = useState<Fase>('laden');
   const [fout, setFout] = useState('');
   const [bezig, setBezig] = useState(false);
@@ -98,8 +100,7 @@ export default function SupportPage() {
     const { data: { session } } = await getSupabase().auth.getSession();
     if (!session) return { fase: 'login' };
 
-    const { data: aal } = await getSupabase().auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aal?.currentLevel === 'aal2') return { fase: 'portaal' };
+    if (hasFreshSupportMfa(session.access_token)) return { fase: 'portaal' };
 
     // Vóór álles wat met factoren te maken heeft. Een gewone leerling of
     // instructeur die hier belandt, kreeg eerder eerst een QR-code en pas
@@ -187,26 +188,36 @@ export default function SupportPage() {
 
   // Scholen ophalen zodra we binnen zijn.
   useEffect(() => {
-    if (fase !== 'portaal') return;
+    if (fase !== 'portaal' || !token) return;
     let afgebroken = false;
     (async () => {
       setFout('');
-      const { data: { session } } = await getSupabase().auth.getSession();
-      if (!session) { setFase('login'); return; }
       const res = await fetch(`/api/support/schools${toonIntern ? '?intern=1' : ''}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (afgebroken) return;
       if (!res.ok) {
+        setScholen([]);
+        if (res.status === 401 || res.status === 403) setFase('login');
         const body = await res.json().catch(() => ({}));
+        if (afgebroken) return;
         setFout(body.error ?? 'Ophalen mislukt.');
         return;
       }
       const body = await res.json();
+      if (afgebroken) return;
       setScholen(body.schools ?? []);
     })();
     return () => { afgebroken = true; };
-  }, [fase, toonIntern]);
+  }, [fase, toonIntern, token]);
+
+  // Een gewijzigde auth-status wist de oude weergave vóór die wordt getoond.
+  if (fase === 'portaal' && status === 'geen-toegang') {
+    setScholen([]);
+    setFout('Je supportverificatie is verlopen. Log opnieuw in en bevestig je tweede factor.');
+    setFase('login');
+    return null;
+  }
 
   if (fase === 'laden') {
     return <div style={s.container}><p style={s.stil}>Even geduld…</p></div>;
