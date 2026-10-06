@@ -1,9 +1,11 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-let values, index, effect, callback, resolveSession, tick, unsubscribed;
+let values, index, effect, callback, resolveSession, tick, unsubscribed, tokenState;
 mock.module('react', { namedExports: {
   useState(initial) { const key = index++; values[key] = initial; return [initial, (v) => { values[key] = v; }]; },
   useEffect(fn) { effect = fn; },
+  useRef(initial) { return { current: initial }; },
+  useCallback(fn) { return fn; },
 } });
 mock.module('@supabase/ssr', { namedExports: { createBrowserClient: () => ({ auth: {
   onAuthStateChange(fn) { callback = fn; return { data: { subscription: { unsubscribe() { unsubscribed = true; } } } }; },
@@ -14,7 +16,7 @@ function SupportHarness() {
   values = []; index = 0; unsubscribed = false;
   globalThis.window = Object.assign(new EventTarget(), { setInterval(fn) { tick = fn; return 1; }, clearInterval() {} });
   globalThis.document = new EventTarget();
-  useSupportToken();
+  tokenState = useSupportToken();
   return effect();
 }
 function session(age = 0) {
@@ -28,6 +30,21 @@ test('signout wint van een oudere getSession-response', async () => {
   await Promise.resolve();
   assert.deepEqual(values, [null, 'geen-toegang']);
   cleanup(); assert.equal(unsubscribed, true);
+});
+test('oud verzoek is direct ongeldig bij refresh, signout en unmount, vóór een nieuwe render', () => {
+  const cleanup = SupportHarness();
+  const first = session(10);
+  const next = session();
+  callback('SIGNED_IN', first);
+  assert.equal(tokenState.isCurrentToken(first.access_token), true);
+  callback('TOKEN_REFRESHED', next);
+  assert.equal(tokenState.isCurrentToken(first.access_token), false);
+  assert.equal(tokenState.isCurrentToken(next.access_token), true);
+  callback('SIGNED_OUT', null);
+  assert.equal(tokenState.isCurrentToken(next.access_token), false);
+  callback('SIGNED_IN', next);
+  cleanup();
+  assert.equal(tokenState.isCurrentToken(next.access_token), false);
 });
 test('refresh vervangt het token; verlopen MFA en signout verbergen data', () => {
   const cleanup = SupportHarness();

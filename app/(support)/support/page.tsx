@@ -58,7 +58,7 @@ function dagenGeleden(iso: string | null): string {
 }
 
 export default function SupportPage() {
-  const { token, status } = useSupportToken();
+  const { token, status, isCurrentToken } = useSupportToken();
   const [fase, setFase] = useState<Fase>('laden');
   const [fout, setFout] = useState('');
   const [bezig, setBezig] = useState(false);
@@ -198,21 +198,21 @@ export default function SupportPage() {
       const res = await fetch(`/api/support/schools${toonIntern ? '?intern=1' : ''}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (afgebroken) return;
+      if (afgebroken || !isCurrentToken(token)) return;
       if (!res.ok) {
         setSchoolResultaat({ token: null, scholen: [] });
         if (res.status === 401 || res.status === 403) setFase('login');
         const body = await res.json().catch(() => ({}));
-        if (afgebroken) return;
+        if (afgebroken || !isCurrentToken(token)) return;
         setFout(body.error ?? 'Ophalen mislukt.');
         return;
       }
       const body = await res.json();
-      if (afgebroken) return;
+      if (afgebroken || !isCurrentToken(token)) return;
       setSchoolResultaat({ token, scholen: body.schools ?? [] });
     })();
     return () => { afgebroken = true; };
-  }, [fase, toonIntern, token]);
+  }, [fase, toonIntern, token, isCurrentToken]);
 
   // Een gewijzigde auth-status wist de oude weergave vóór die wordt getoond.
   if (fase === 'portaal' && status === 'geen-toegang') {

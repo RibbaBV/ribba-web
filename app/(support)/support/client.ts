@@ -5,7 +5,7 @@
 // De client wordt lui aangemaakt: tijdens het prerenderen bestaat er geen
 // browser en zou createBrowserClient de build laten klappen.
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { hasFreshSupportMfa } from '@/lib/support-session';
 import type { SupabaseClient, Session } from '@supabase/supabase-js';
@@ -29,9 +29,11 @@ export type SessieStatus = 'laden' | 'ok' | 'geen-toegang';
  * Dit is gemak, geen beveiliging: de API controleert aal2 en de MFA-tijd zelf. Deze
  * hook voorkomt alleen dat je een leeg scherm met een 403 te zien krijgt.
  */
-export function useSupportToken(): { token: string | null; status: SessieStatus } {
+export function useSupportToken(): { token: string | null; status: SessieStatus; isCurrentToken: (candidate: string) => boolean } {
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<SessieStatus>('laden');
+  const currentToken = useRef<string | null>(null);
+  const isCurrentToken = useCallback((candidate: string) => currentToken.current === candidate, []);
 
   useEffect(() => {
     let afgebroken = false;
@@ -42,7 +44,9 @@ export function useSupportToken(): { token: string | null; status: SessieStatus 
       if (afgebroken) return;
       currentSession = session;
       const fresh = session && hasFreshSupportMfa(session.access_token);
-      setToken(fresh ? session.access_token : null);
+      // Meteen ongeldig maken, ook vóór React de vorige request-effect opruimt.
+      currentToken.current = fresh ? session.access_token : null;
+      setToken(currentToken.current);
       setStatus(fresh ? 'ok' : 'geen-toegang');
     };
     // Geen async auth-aanroepen in de callback: die kunnen de auth-lock blokkeren.
@@ -64,6 +68,7 @@ export function useSupportToken(): { token: string | null; status: SessieStatus 
     document.addEventListener('visibilitychange', recheck);
     return () => {
       afgebroken = true;
+      currentToken.current = null;
       subscription.unsubscribe();
       window.clearInterval(timer);
       window.removeEventListener('focus', recheck);
@@ -71,5 +76,5 @@ export function useSupportToken(): { token: string | null; status: SessieStatus 
     };
   }, []);
 
-  return { token, status };
+  return { token, status, isCurrentToken };
 }
