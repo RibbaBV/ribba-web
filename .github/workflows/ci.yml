@@ -75,6 +75,7 @@ jobs:
       # rapporteert los. Hier hoort hij bij de CI Gate, zodat een brekende build
       # niet pas zichtbaar wordt wanneer de productiedeploy al onderweg is.
       - run: npm run build
+      - run: node scripts/check-support-isolation.mjs
 
   # ── De poort ────────────────────────────────────────────────────────────────
   #

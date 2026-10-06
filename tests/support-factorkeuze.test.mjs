@@ -136,7 +136,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const pagina = readFileSync(
-  join(import.meta.dirname, '..', 'app', 'support', 'page.tsx'),
+  join(import.meta.dirname, '..', 'app', '(support)', 'support', 'page.tsx'),
   'utf8',
 );
 

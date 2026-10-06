@@ -120,7 +120,7 @@ describe('magDoorsturen', () => {
 
 describe('de pagina zelf', () => {
   const ruweBron = () =>
-    readFileSync(new URL('../app/upgrade/success/page.tsx', import.meta.url), 'utf8');
+    readFileSync(new URL('../app/(site)/upgrade/success/page.tsx', import.meta.url), 'utf8');
 
   // Zonder commentaar, want daar staat juist de uitleg over de oude fout —
   // inclusief de zin die hieronder verboden is. De assertie moet gaan over wat

@@ -53,7 +53,7 @@ test('definitieve HTTP-fout sluit de poging af: nieuwe klik = NIEUWE attempt_id'
 });
 
 // ── Checkout: request-level bewijs + bfcache-herstel (correctie 21 jul) ─────
-// Zelfde compositie als app/upgrade/page.tsx: begin() vóór de fetch, fail()
+// Zelfde compositie als app/(site)/upgrade/page.tsx: begin() vóór de fetch, fail()
 // alleen bij een mislukt antwoord, bij succes GEEN release (de pagina
 // navigeert naar Stripe; de lock blijft tot de redirect). reset() is de
 // pageshow/persisted-terugkeer uit de bfcache.
