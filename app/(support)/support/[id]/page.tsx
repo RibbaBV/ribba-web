@@ -296,6 +296,7 @@ export default function SchoolDetailPagina({ params }: { params: Promise<{ id: s
 
         <section style={s.kaart}>
           <h2 style={s.h2}>Rijschool</h2>
+          <Link href={`/support/${id}/bewerken`} style={s.terug}>Schoolgegevens bewerken →</Link>
           <dl style={s.lijst}>
             <Rij label="E-mail" waarde={school.email} />
             <Rij label="Telefoon" waarde={school.telefoon} />
