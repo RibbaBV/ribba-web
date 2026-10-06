@@ -13,7 +13,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import RibbaLogo from '../../components/RibbaLogo';
-import { getSupabase } from './client';
+import { getSupabase, useSupportToken } from './client';
+import { hasFreshSupportMfa } from '@/lib/support-session';
 import { kiesFactorpad, type Factoroptie } from '@/lib/support-factorkeuze';
 
 type Fase = 'laden' | 'login' | 'geen-toegang' | 'tweefactor-instellen' | 'tweefactor-kiezen' | 'tweefactor-invoeren' | 'portaal';
@@ -57,6 +58,7 @@ function dagenGeleden(iso: string | null): string {
 }
 
 export default function SupportPage() {
+  const { token, status, isCurrentToken } = useSupportToken();
   const [fase, setFase] = useState<Fase>('laden');
   const [fout, setFout] = useState('');
   const [bezig, setBezig] = useState(false);
@@ -70,7 +72,10 @@ export default function SupportPage() {
   const [factorId, setFactorId] = useState('');
   const [factorOpties, setFactorOpties] = useState<Factoroptie[]>([]);
 
-  const [scholen, setScholen] = useState<School[]>([]);
+  const [schoolResultaat, setSchoolResultaat] = useState<{ token: string | null; scholen: School[] }>({ token: null, scholen: [] });
+  // Een nieuwe sessie mag nooit de scholen van de vorige sessie tonen, ook
+  // niet terwijl haar eigen verzoek nog onderweg is of wordt geweigerd.
+  const scholen = schoolResultaat.token === token ? schoolResultaat.scholen : [];
   const [toonIntern, setToonIntern] = useState(false);
 
   // Mag dit account aan de support-tweefactor beginnen? Uitsluitend de server
@@ -98,8 +103,7 @@ export default function SupportPage() {
     const { data: { session } } = await getSupabase().auth.getSession();
     if (!session) return { fase: 'login' };
 
-    const { data: aal } = await getSupabase().auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aal?.currentLevel === 'aal2') return { fase: 'portaal' };
+    if (hasFreshSupportMfa(session.access_token)) return { fase: 'portaal' };
 
     // Vóór álles wat met factoren te maken heeft. Een gewone leerling of
     // instructeur die hier belandt, kreeg eerder eerst een QR-code en pas
@@ -181,32 +185,42 @@ export default function SupportPage() {
 
   const uitloggen = async () => {
     await getSupabase().auth.signOut();
-    setScholen([]);
+    setSchoolResultaat({ token: null, scholen: [] });
     setFase('login');
   };
 
   // Scholen ophalen zodra we binnen zijn.
   useEffect(() => {
-    if (fase !== 'portaal') return;
+    if (fase !== 'portaal' || !token) return;
     let afgebroken = false;
     (async () => {
       setFout('');
-      const { data: { session } } = await getSupabase().auth.getSession();
-      if (!session) { setFase('login'); return; }
       const res = await fetch(`/api/support/schools${toonIntern ? '?intern=1' : ''}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (afgebroken) return;
+      if (afgebroken || !isCurrentToken(token)) return;
       if (!res.ok) {
+        setSchoolResultaat({ token: null, scholen: [] });
+        if (res.status === 401 || res.status === 403) setFase('login');
         const body = await res.json().catch(() => ({}));
+        if (afgebroken || !isCurrentToken(token)) return;
         setFout(body.error ?? 'Ophalen mislukt.');
         return;
       }
       const body = await res.json();
-      setScholen(body.schools ?? []);
+      if (afgebroken || !isCurrentToken(token)) return;
+      setSchoolResultaat({ token, scholen: body.schools ?? [] });
     })();
     return () => { afgebroken = true; };
-  }, [fase, toonIntern]);
+  }, [fase, toonIntern, token, isCurrentToken]);
+
+  // Een gewijzigde auth-status wist de oude weergave vóór die wordt getoond.
+  if (fase === 'portaal' && status === 'geen-toegang') {
+    setSchoolResultaat({ token: null, scholen: [] });
+    setFout('Je supportverificatie is verlopen. Log opnieuw in en bevestig je tweede factor.');
+    setFase('login');
+    return null;
+  }
 
   if (fase === 'laden') {
     return <div style={s.container}><p style={s.stil}>Even geduld…</p></div>;

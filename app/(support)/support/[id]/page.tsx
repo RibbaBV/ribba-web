@@ -136,10 +136,12 @@ function tegenspraak(licentie: Licentie | null, abo: Detail['abonnement']): stri
 
 export default function SchoolDetailPagina({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { token, status } = useSupportToken();
+  const { token, status, isCurrentToken } = useSupportToken();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [events, setEvents] = useState<Gebeurtenis[]>([]);
   const [fout, setFout] = useState('');
+  const [geweigerd, setGeweigerd] = useState(false);
+  const [weergaveVoor, setWeergaveVoor] = useState({ token, id });
 
   useEffect(() => {
     if (!token) return;
@@ -148,20 +150,33 @@ export default function SchoolDetailPagina({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/support/schools/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (afgebroken) return;
+      if (afgebroken || !isCurrentToken(token)) return;
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) setGeweigerd(true);
         const body = await res.json().catch(() => ({}));
+        if (afgebroken || !isCurrentToken(token)) return;
         setFout(body.error ?? 'Ophalen mislukt.');
         return;
       }
       const body = await res.json();
+      if (afgebroken || !isCurrentToken(token)) return;
       setDetail(body.detail);
       setEvents(body.events ?? []);
     })();
     return () => { afgebroken = true; };
-  }, [token, id]);
+  }, [token, id, isCurrentToken]);
 
-  if (status === 'geen-toegang') {
+  // Geen data van de vorige sessie of school tonen tijdens een nieuwe aanvraag.
+  if (weergaveVoor.token !== token || weergaveVoor.id !== id) {
+    setWeergaveVoor({ token, id });
+    setDetail(null);
+    setEvents([]);
+    setGeweigerd(false);
+    setFout('');
+    return null;
+  }
+
+  if (status === 'geen-toegang' || geweigerd) {
     return (
       <div style={s.pagina}>
         <p style={s.stil}>Je sessie is verlopen of mist de tweede factor.</p>

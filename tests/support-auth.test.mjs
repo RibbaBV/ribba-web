@@ -42,8 +42,8 @@ const { GET: schoolGET } = await import('../app/api/support/schools/[id]/route.t
 const USER = { id: 'staff-1', email: 'support@ribba.nl' };
 
 /** Token met een aal-claim. De handtekening doet er niet toe: getUser (server-side) valideert. */
-function token(aal) {
-  const payload = Buffer.from(JSON.stringify({ aal }), 'utf8').toString('base64url');
+function token(aal, extra = {}) {
+  const payload = Buffer.from(JSON.stringify({ aal, amr: [{ method: 'totp', timestamp: Math.floor(Date.now() / 1000) }], ...extra }), 'utf8').toString('base64url');
   return `header.${payload}.signature`;
 }
 
@@ -369,5 +369,22 @@ for (const fase of ['configuratie', 'authenticatie', 'staff-lookup']) {
     assert.equal(res.headers.get('CDN-Cache-Control'), 'no-store');
     assert.equal(res.headers.get('Vercel-CDN-Cache-Control'), 'no-store');
     assert.equal(handlerDraaide, false);
+  });
+}
+
+for (const [name, amr] of [
+  ['ontbrekende MFA-tijd', undefined],
+  ['oude MFA ondanks vers token', [{ method: 'totp', timestamp: Math.floor(Date.now() / 1000) - 8 * 3600 }]],
+  ['alleen een verse wachtwoordlogin', [{ method: 'password', timestamp: Math.floor(Date.now() / 1000) }]],
+]) {
+  test(`${name}: API weigert vóór de datahandler en logt de weigering`, async () => {
+    currentClient = makeClient();
+    let called = false;
+    const res = await withSupportAccess(req(`Bearer ${token('aal2', { amr, iat: Math.floor(Date.now() / 1000) })}`), NIVEAU_0,
+      async () => { called = true; return { secret: true }; });
+    assert.equal(res.status, 403);
+    assert.equal(called, false);
+    assert.equal(currentClient.logs[0].meta.denied_reason, 'mfa_expired');
+    assert.match(res.headers.get('Cache-Control'), /no-store/);
   });
 }
