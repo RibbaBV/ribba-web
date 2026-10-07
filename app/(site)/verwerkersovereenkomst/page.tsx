@@ -423,7 +423,11 @@ export default function VerwerkersovereenkomstPage() {
         9.3. Ribba biedt technische functionaliteiten waarmee de
         Verwerkingsverantwoordelijke zelfstandig aan verzoeken van betrokkenen
         kan voldoen, waaronder de exportfunctie &ldquo;Alles downloaden&rdquo; en
-        het verwijderverzoek in de app.
+        de functie &ldquo;Leerling verwijderen&rdquo; voor de gegevens van
+        &eacute;&eacute;n leerling. Het verwijderverzoek in de app is daarvan te
+        onderscheiden: dat is een verzoek om verwijdering van alle gegevens van
+        de Verwerkingsverantwoordelijke, en geldt als be&euml;indiging in de zin
+        van artikel 11.1.
       </p>
 
       {/* Artikel 10 */}
