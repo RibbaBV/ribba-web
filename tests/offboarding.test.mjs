@@ -66,6 +66,12 @@ describe('de pagina', () => {
     assert.match(pagina, /\{naOpzeggenTekst\(periodEnd\) && \(/);
   });
 
+  test('"toegang tot" en de verwijderdatum rekenen allebei in Nederlandse tijd', () => {
+    // Anders ziet iemand buiten Nederland, bij een einde rond middernacht, twee
+    // datums die geen 30 dagen uit elkaar lijken te liggen (CodeRabbit, #97).
+    assert.match(pagina, /Je hebt toegang tot <strong>\{new Date\(periodEnd\)\.toLocaleDateString\('nl-NL', \{[^}]*timeZone: 'Europe\/Amsterdam' \}\)\}/);
+  });
+
   test('de witregel in de tekst wordt getoond', () => {
     assert.match(pagina, /margin: '0 0 24px', whiteSpace: 'pre-line' \}\}>\s*\{body\}/);
   });

@@ -864,7 +864,7 @@ function UpgradeContent() {
           >
             Je abonnement is opgezegd.
             {periodEnd && (
-              <> Je hebt toegang tot <strong>{new Date(periodEnd).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.</>
+              <> Je hebt toegang tot <strong>{new Date(periodEnd).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Amsterdam' })}</strong>.</>
             )}
             {!periodEnd && ' Je hebt nog toegang tot het einde van de huidige betaalperiode.'}
             {/* A4: daarna 30 dagen downloaden, dan gaat alles weg (besluit 4 okt 2026). */}
