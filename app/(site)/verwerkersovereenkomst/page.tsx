@@ -105,7 +105,7 @@ export default function VerwerkersovereenkomstPage() {
       </Link>
 
       <h1 style={styles.h1}>Verwerkersovereenkomst — Ribba Rijschool Planner</h1>
-      <p style={styles.updated}>Versie: {LEGAL_VERSIONS.dpa} · Laatst bijgewerkt: 6 augustus 2026</p>
+      <p style={styles.updated}>Versie: {LEGAL_VERSIONS.dpa} · Laatst bijgewerkt: 7 oktober 2026</p>
       <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: 16, marginBottom: 32, fontSize: 14, color: '#1E40AF' }}>
         Deze verwerkersovereenkomst geldt voor <strong>Ribba Rijschool Planner</strong> (de rijschoolsoftware/iOS-app voor rijscholen).
       </div>
@@ -420,9 +420,10 @@ export default function VerwerkersovereenkomstPage() {
         door.
       </p>
       <p style={styles.p}>
-        9.3. Ribba biedt waar mogelijk technische functionaliteiten waarmee de
+        9.3. Ribba biedt technische functionaliteiten waarmee de
         Verwerkingsverantwoordelijke zelfstandig aan verzoeken van betrokkenen
-        kan voldoen (bijv. export- en verwijderfuncties).
+        kan voldoen, waaronder de exportfunctie &ldquo;Alles downloaden&rdquo; en
+        het verwijderverzoek in de app.
       </p>
 
       {/* Artikel 10 */}
@@ -447,17 +448,36 @@ export default function VerwerkersovereenkomstPage() {
         Artikel 11 — Teruggave en verwijdering na be&euml;indiging
       </h2>
       <p style={styles.p}>
-        11.1. Na be&euml;indiging van het Abonnement heeft de
-        Verwerkingsverantwoordelijke 30 dagen de tijd om gegevens te exporteren.
+        11.1. Onder be&euml;indiging wordt verstaan: opzegging van het
+        Abonnement, of een verzoek van de Verwerkingsverantwoordelijke om
+        verwijdering. Na een opzegging heeft de Verwerkingsverantwoordelijke tot
+        30 dagen na het einde van het Abonnement de tijd om de gegevens te
+        exporteren. Na een verzoek om verwijdering is dat tot 21 dagen na de
+        ontvangst van het verzoek, zodat de verwijdering binnen de wettelijke
+        termijn van een maand plaatsvindt. De exportfunctie blijft daarvoor ook
+        na het einde van het Abonnement beschikbaar.
       </p>
       <p style={styles.p}>
-        11.2. Na het verstrijken van deze termijn verwijdert Ribba alle
-        persoonsgegevens die in opdracht van de Verwerkingsverantwoordelijke zijn
-        verwerkt, tenzij een wettelijke bewaarplicht anders vereist.
+        11.2. Na het verstrijken van deze termijn verwijdert Ribba alle gegevens
+        die in opdracht van de Verwerkingsverantwoordelijke zijn verwerkt,
+        inclusief bestanden en kopie&euml;n. Ribba bewaart uitsluitend wat Ribba
+        zelf wettelijk moet bewaren (haar eigen facturering aan de
+        Verwerkingsverantwoordelijke) en een registratie dat de verwijdering is
+        uitgevoerd. Wettelijke bewaarplichten van de Verwerkingsverantwoordelijke
+        zelf, zoals de fiscale bewaarplicht voor haar facturen, blijven bij de
+        Verwerkingsverantwoordelijke.
       </p>
       <p style={styles.p}>
-        11.3. Ribba verstrekt op verzoek een schriftelijke bevestiging van de
-        verwijdering.
+        11.3. Ribba stuurt de Verwerkingsverantwoordelijke uiterlijk zeven dagen
+        v&oacute;&oacute;r de verwijdering een herinnering, en na de verwijdering een
+        schriftelijke bevestiging.
+      </p>
+      <p style={styles.p}>
+        11.4. Stopt het gebruik zonder opzegging of verzoek, bijvoorbeeld bij een
+        verlopen proefperiode of een Abonnement dat niet wordt betaald, dan
+        bewaart Ribba de gegevens maximaal 2 jaar na het einde, zodat de
+        Verwerkingsverantwoordelijke het gebruik kan hervatten. Daarna verwijdert
+        Ribba ze op dezelfde wijze als in 11.2.
       </p>
 
       {/* Artikel 12 */}
