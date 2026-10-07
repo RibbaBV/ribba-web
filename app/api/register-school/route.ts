@@ -1,3 +1,4 @@
+import { ribbaLogoHtml, storeBadgesHtml } from '@/lib/email-store-badges';
 import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -15,7 +16,6 @@ import {
   normalizeVat,
   requiresLegalName,
 } from '@/lib/country-profile';
-import { APP_STORE_URL, PLAY_STORE_URL } from '@/lib/app-links';
 import { sendAdminNotification } from '@/lib/admin-notifications';
 import { sanitizeSignupAttribution, summarizeAttribution } from '@/lib/signup-attribution';
 import { DOMAIN } from '@/lib/domains';
@@ -481,9 +481,7 @@ export async function POST(request: NextRequest) {
       'Bevestig je e-mailadres voor Ribba',
       `
       <div style="font-family: Inter, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px; color: #1e293b;">
-        <div style="background: #2563EB; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px;">
-          <span style="color: #fff; font-weight: 900; font-size: 20px;">R</span>
-        </div>
+        <div style="margin-bottom: 24px;">${ribbaLogoHtml()}</div>
         <h1 style="font-size: 24px; font-weight: 800; margin: 0 0 16px 0;">Welkom bij Ribba! 🎉</h1>
         <p style="color: #64748b; line-height: 1.6; font-size: 15px; margin: 0 0 20px 0;">
           Hoi ${escapeHtml(first_name.trim())},<br><br>
@@ -512,10 +510,7 @@ export async function POST(request: NextRequest) {
         <p style="color: #1e293b; line-height: 1.6; font-size: 15px; font-weight: 600; margin: 0 0 12px 0;">
           Download alvast de Ribba app:
         </p>
-        <div style="margin-bottom: 24px;">
-          <a href="${APP_STORE_URL}" style="display: inline-block; background: #000; color: #fff; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600; margin-right: 8px; margin-bottom: 8px;">📱 App Store</a>
-          <a href="${PLAY_STORE_URL}" style="display: inline-block; background: #000; color: #fff; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600;">▶ Google Play</a>
-        </div>
+        <div style="margin-bottom: 24px;">${storeBadgesHtml()}</div>
         <p style="color: #94a3b8; font-size: 13px; margin: 24px 0 0 0;">
           Geen account aangemaakt bij Ribba? Negeer deze e-mail dan.<br>
           Vragen? Mail ons op <a href="mailto:team@ribba.nl" style="color: #2563EB;">team@ribba.nl</a>

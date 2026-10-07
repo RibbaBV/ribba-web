@@ -55,7 +55,7 @@ describe('de teksten (goedgekeurd door Önder, 4 okt 2026)', () => {
 });
 
 describe('de pagina', () => {
-  const pagina = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
+  const pagina = readFileSync(new URL('../app/(site)/upgrade/page.tsx', import.meta.url), 'utf8');
 
   test('het opzegvenster gebruikt de vaste tekst; de oude zin is weg', () => {
     assert.match(pagina, /title="Abonnement opzeggen\?"\s*body=\{OPZEGGEN_TEKST\}/);

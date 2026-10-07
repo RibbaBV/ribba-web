@@ -36,10 +36,10 @@ let currentClient;
 let rateLimitStaatToe = true;
 mock.module('@/lib/rate-limit', { namedExports: { rateLimit: () => rateLimitStaatToe } });
 
-mock.module('@supabase/supabase-js', { namedExports: { createClient: () => currentClient } });
+mock.module('@supabase/supabase-js', { namedExports: { createClient: () => { if (currentClient instanceof Error) throw currentClient; return currentClient; } } });
 mock.module('next/server', {
   namedExports: {
-    NextResponse: { json: (body, init) => ({ body, status: init?.status ?? 200 }) },
+    NextResponse: { json: (body, init) => ({ body, status: init?.status ?? 200, headers: new Headers(init?.headers) }) },
     NextRequest: class NextRequest {},
   },
 });
@@ -218,3 +218,19 @@ test('een toegestane check vervuilt het toegangslogboek niet', async () => {
   assert.equal(currentClient.logs.length, 0,
     'het logboek verantwoordt inzage in klantgegevens; elke paginalading erin maakt het onbruikbaar');
 });
+
+for (const fase of ['configuratie', 'authenticatie', 'staff-lookup']) {
+  test(`onverwachte fout bij ${fase} → 500, geen toegang en geen cache`, async () => {
+    const fout = new Error('gevoelige interne fout');
+    currentClient = makeClient();
+    if (fase === 'configuratie') currentClient = fout;
+    if (fase === 'authenticatie') currentClient.auth.getUser = async () => { throw fout; };
+    if (fase === 'staff-lookup') currentClient.rpc = async () => { throw fout; };
+    const res = await GET(req('Bearer test'));
+    assert.equal(res.status, 500);
+    assert.deepEqual(res.body, { eligible: false });
+    assert.equal(res.headers.get('Cache-Control'), 'private, no-store, max-age=0');
+    assert.equal(res.headers.get('CDN-Cache-Control'), 'no-store');
+    assert.equal(res.headers.get('Vercel-CDN-Cache-Control'), 'no-store');
+  });
+}

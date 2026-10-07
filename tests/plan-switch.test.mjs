@@ -89,7 +89,7 @@ test('time-out: een hangende aanroep wordt afgebroken en geldt als netwerkfout',
 });
 
 test('/upgrade: na een mislukte wissel of terugdraai wordt de stand opnieuw bij Stripe gelezen', () => {
-  const src = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../app/(site)/upgrade/page.tsx', import.meta.url), 'utf8');
   const fout = src.indexOf('if (!result.ok) {', src.indexOf('const runSwitch'));
   const herlezen = src.indexOf("action: 'status'", fout);
   assert.ok(fout > 0 && herlezen > fout && herlezen < src.indexOf('return;', fout + 200) + 50);
@@ -150,7 +150,7 @@ test('datum: Nederlandse tijd, voluit', () => {
 });
 
 test('/upgrade: de wisselknop opent eerst een bevestiging, en de status komt uit Stripe', () => {
-  const src = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../app/(site)/upgrade/page.tsx', import.meta.url), 'utf8');
   assert.match(src, /Na deze periode naar Basic/);
   assert.match(src, /onClick=\{\(\) => setShowSwitchModal\(true\)\}/);
   assert.match(src, /Toch Premium houden/);
@@ -236,7 +236,7 @@ test('bevestigingstekst: gratis periode → niets extra', () => {
 });
 
 test('/upgrade: Basic met Stripe-abonnement upgradet binnen het abonnement, anders de checkout', () => {
-  const src = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../app/(site)/upgrade/page.tsx', import.meta.url), 'utf8');
   assert.match(src, /const upgradeInSubscription = currentPlan === 'basic' && !isTrial && switchStatus\.known;/);
   assert.match(src, /upgradeInSubscription \? startUpgrade\(\) : handleCheckout\('premium'\)/);
   assert.match(src, /Nu upgraden naar Premium\?/);

@@ -3,6 +3,7 @@
 // lib/school-emails.ts, maar zonder logBillingEvent (dat vereist een
 // drivingschool-uuid; marketplace werkt met integer cbr_rijscholen-ids).
 
+import { storeBadgesHtml } from '@/lib/email-store-badges';
 import { DOMAIN } from './domains';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -285,11 +286,7 @@ export async function sendReplyNotificationMail(input: ReplyNotificationInput): 
       <p style="margin:0 0 8px;padding:12px 16px;background:#F8FAFC;border-radius:12px;font-size:14px;color:#0F172A;font-style:italic">“${escapeHtml(preview)}”</p>
       <p style="margin:16px 0 0;font-size:14px;color:#475569">Open de beveiligde chat om te antwoorden — geen account of app nodig, e-mailverificatie is genoeg.</p>
       <p style="margin:16px 0 0;font-size:14px;color:#475569"><strong>Tip:</strong> download de Ribba app om je berichten te volgen met push-meldingen, zonder browser-tab:</p>
-      <p style="margin:12px 0 0">
-        <a href="https://apps.apple.com/nl/app/ribba-rijles-planner/id6757161459" style="color:#2563EB;font-weight:600;font-size:14px">App Store</a>
-        &nbsp;·&nbsp;
-        <a href="https://play.google.com/store/apps/details?id=app.ribba.pro" style="color:#2563EB;font-weight:600;font-size:14px">Google Play</a>
-      </p>
+      <div style="margin:12px 0 0">${storeBadgesHtml()}</div>
       ${appLinkBlock(input.appPath)}
     `,
     ctaLabel: 'Open de chat',
