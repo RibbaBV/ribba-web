@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import RibbaLogo from '../../components/RibbaLogo';
+import OwnerDashboardLink from './owner-dashboard-link';
 import type { School } from './school';
 import styles from './support-design.module.css';
 
@@ -29,6 +30,7 @@ export default function SchoolOverview({ scholen, fout, toonIntern, onToonIntern
   return <div className={styles.page}>
     <header className={styles.topbar}>
       <div className={styles.brand}><RibbaLogo height={25} /><span>Support</span></div>
+      <OwnerDashboardLink />
       <button className={styles.quietButton} onClick={onUitloggen}>Uitloggen <span aria-hidden="true">↗</span></button>
     </header>
     <main className={styles.content}>

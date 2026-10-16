@@ -388,3 +388,52 @@ for (const [name, amr] of [
     assert.match(res.headers.get('Cache-Control'), /no-store/);
   });
 }
+
+// Owner-only dashboard must reject even otherwise-authorized support staff.
+const { GET: dashboardGET } = await import('../app/api/support/dashboard/route.ts');
+const { POST: insightsPOST } = await import('../app/api/support/dashboard/insights/route.ts');
+for (const [name,owner,error,expected] of [
+ ['ordinary staff',false,null,403],['unknown owner',null,null,403],
+ ['lookup failure',null,{message:'unavailable'},503],['designated owner',true,null,200],
+]) {
+ test(`owner dashboard: ${name}`,async()=>{
+  currentClient=makeClient({rpc:{is_platform_owner:{data:owner,error},owner_growth_dashboard:{data:{status:'collecting'},error:null}}});
+  const response=await dashboardGET(req(`Bearer ${token('aal2')}`,'https://mijn.ribba.app/api/support/dashboard?days=7'));
+  assert.equal(response.status,expected);
+  assert.equal(currentClient.rpcCalls.some(c=>c.naam==='owner_growth_dashboard'),owner===true&&!error);
+  assert.match(response.headers.get('Cache-Control'),/no-store/);
+ });
+}
+test('owner-only AI endpoint rejects support staff before provider access',async()=>{
+ currentClient=makeClient({rpc:{is_platform_owner:{data:false,error:null}}});
+ const res=await insightsPOST(req(`Bearer ${token('aal2')}`));
+ assert.equal(res.status,403);
+ assert.equal(currentClient.rpcCalls.some(c=>c.naam==='owner_growth_dashboard'),false);
+});
+test('owner dashboard invalid range never reaches data RPC',async()=>{
+ currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null}}});
+ const res=await dashboardGET(req(`Bearer ${token('aal2')}`,'https://mijn.ribba.app/api/support/dashboard?days=365'));
+ assert.equal(res.status,400);
+ assert.equal(currentClient.rpcCalls.some(c=>c.naam==='owner_growth_dashboard'),false);
+});
+test('owner dashboard blocked when audit unavailable',async()=>{
+ currentClient=makeClient({logError:'offline',rpc:{is_platform_owner:{data:true,error:null}}});
+ const res=await dashboardGET(req(`Bearer ${token('aal2')}`));
+ assert.equal(res.status,503);
+ assert.equal(currentClient.rpcCalls.some(c=>c.naam==='owner_growth_dashboard'),false);
+});
+test('owner AI route stores immutable aggregate evidence with the proposal',async(t)=>{
+ const oldKey=process.env.OPENAI_API_KEY,oldModel=process.env.GROWTH_AI_MODEL;
+ process.env.OPENAI_API_KEY='test-only';process.env.GROWTH_AI_MODEL='test-model';
+ t.after(()=>{if(oldKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=oldKey;if(oldModel===undefined)delete process.env.GROWTH_AI_MODEL;else process.env.GROWTH_AI_MODEL=oldModel;});
+ const fixture={status:'ready',days:30,definition_version:1,captured_at:new Date().toISOString(),metrics:{schools:2,new:1,previous_new:0,active:1,previous_active:0,lessons:2,previous_lessons:1},onboarding:{total:1,profile:1,lesson_type:0,first_lesson:0},attention:[{school_id:'private',name:'Customer',reason:'no_lesson_type',age_days:7}]};
+ currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_growth_dashboard:{data:fixture,error:null},claim_growth_ai:{data:'run-1',error:null},finish_growth_ai:{data:null,error:null}}});
+ t.mock.method(globalThis,'fetch',async()=>({ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:'{"suggestions":[]}'}]}]})}));
+ const res=await insightsPOST(req(`Bearer ${token('aal2')}`,'https://mijn.ribba.app/api/support/dashboard/insights?days=30'));
+ assert.equal(res.status,200);
+ const saved=currentClient.rpcCalls.find(c=>c.naam==='finish_growth_ai').args.p_result;
+ assert.equal(saved.evidence.metrics.schools,2);
+ assert.equal(saved.evidence.signals.no_lesson_type,1);
+ assert.ok(!JSON.stringify(saved).includes('Customer'));
+ assert.ok(!JSON.stringify(saved).includes('private'));
+});
