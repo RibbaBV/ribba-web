@@ -20,12 +20,14 @@ assert.equal(existsSync(resolve(root, 'app/layout.tsx')), false,
 assert.ok(existsSync(resolve(root, 'app/(support)/layout.tsx')));
 assert.ok(existsSync(resolve(root, 'app/(site)/layout.tsx')));
 
-const support = read('.next/server/app/support.html');
-const supportDelivered = support + browserCode(support);
-for (const marker of markers) {
-  assert.ok(!supportDelivered.includes(marker), `Marketingcode op support: ${marker}`);
+for (const route of ['support', 'support/dashboard', 'support/dashboard/journey']) {
+  const support = read(`.next/server/app/${route}.html`);
+  const supportDelivered = support + browserCode(support);
+  for (const marker of markers) {
+    assert.ok(!supportDelivered.includes(marker), `Marketingcode op ${route}: ${marker}`);
+  }
+  assert.match(support, /noindex/, `${route} hoort niet geïndexeerd te worden`);
 }
-assert.match(support, /noindex/, 'Support hoort niet geïndexeerd te worden');
 
 for (const route of ['pro', 'registreren', 'registreren/ontvangen']) {
   const html = read(`.next/server/app/${route}.html`);
