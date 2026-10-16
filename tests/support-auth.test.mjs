@@ -426,7 +426,7 @@ test('owner AI route stores immutable aggregate evidence with the proposal',asyn
  const oldKey=process.env.OPENAI_API_KEY,oldModel=process.env.GROWTH_AI_MODEL;
  process.env.OPENAI_API_KEY='test-only';process.env.GROWTH_AI_MODEL='test-model';
  t.after(()=>{if(oldKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=oldKey;if(oldModel===undefined)delete process.env.GROWTH_AI_MODEL;else process.env.GROWTH_AI_MODEL=oldModel;});
- const fixture={status:'ready',days:30,definition_version:1,captured_at:new Date().toISOString(),metrics:{schools:2,new:1,previous_new:0,active:1,previous_active:0,lessons:2,previous_lessons:1},onboarding:{total:1,profile:1,lesson_type:0,first_lesson:0},attention:[{school_id:'private',name:'Customer',reason:'no_lesson_type',age_days:7}]};
+ const fixture={status:'ready',days:30,definition_version:1,captured_at:new Date().toISOString(),metrics:{schools:2,new:1,previous_new:0,active:1,previous_active:0,lessons:2,previous_lessons:1},onboarding:{total:1,profile:1,lesson_type:0,first_lesson:0},attention:[{school_id:'private',name:'PRIVATE_SCHOOL_FIXTURE',reason:'no_lesson_type',age_days:7}]};
  currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_growth_dashboard:{data:fixture,error:null},claim_growth_ai:{data:'run-1',error:null},finish_growth_ai:{data:null,error:null}}});
  t.mock.method(globalThis,'fetch',async()=>({ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:'{"suggestions":[]}'}]}]})}));
  const res=await insightsPOST(req(`Bearer ${token('aal2')}`,'https://mijn.ribba.app/api/support/dashboard/insights?days=30'));
@@ -434,6 +434,34 @@ test('owner AI route stores immutable aggregate evidence with the proposal',asyn
  const saved=currentClient.rpcCalls.find(c=>c.naam==='finish_growth_ai').args.p_result;
  assert.equal(saved.evidence.metrics.schools,2);
  assert.equal(saved.evidence.signals.no_lesson_type,1);
- assert.ok(!JSON.stringify(saved).includes('Customer'));
+ assert.ok(!JSON.stringify(saved).includes('PRIVATE_SCHOOL_FIXTURE'));
  assert.ok(!JSON.stringify(saved).includes('private'));
+});
+
+const {GET:journeyGET,POST:journeyPOST}=await import('../app/api/support/dashboard/journey/route.ts');
+const caseBody={school_id:'00000000-0000-4000-8000-000000000011',id:'00000000-0000-4000-8000-000000000081',revision:0,case:{version:1,topic:'packages',blocker:'how_to',assistance:'together',resolution:'pending',status:'open',minutes:10,follow_up:null}};
+for(const handler of [journeyGET,journeyPOST]){
+ for(const [name,auth,owner,logError,expected] of [['anonymous',null,true,null,401],['staff',`Bearer ${token('aal2')}`,false,null,403],['expired MFA',`Bearer ${token('aal1')}`,true,null,403],['audit unavailable',`Bearer ${token('aal2')}`,true,'offline',503]]){
+  test(`journey ${handler.name} ${name} cannot reach private RPC`,async()=>{
+   currentClient=makeClient({logError,rpc:{is_platform_owner:{data:owner,error:null}}});
+   const r=await handler({...req(auth,'https://mijn.ribba.app/api/support/dashboard/journey'),text:async()=>JSON.stringify(caseBody)});
+   assert.equal(r.status,expected);assert.ok(!currentClient.rpcCalls.some(c=>['owner_school_journey','owner_save_support_case'].includes(c.naam)));
+   assert.match(r.headers.get('Cache-Control'),/no-store/);
+  });
+ }
+}
+test('journey write binds actor to verified user and passes only validated fields',async()=>{
+ currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_save_support_case:{data:{status:'saved',revision:1},error:null}}});
+ const r=await journeyPOST({...req(`Bearer ${token('aal2')}`),text:async()=>JSON.stringify(caseBody)});
+ assert.equal(r.status,200);
+ assert.deepEqual(currentClient.rpcCalls.find(c=>c.naam==='owner_save_support_case').args,{p_actor:USER.id,p_school:caseBody.school_id,p_id:caseBody.id,p_revision:0,p_case:caseBody.case});
+});
+for(const [status,code] of [['conflict',409],['not_found',404]])test(`journey ${status} has actionable status`,async()=>{
+ currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_save_support_case:{data:{status},error:null}}});
+ const r=await journeyPOST({...req(`Bearer ${token('aal2')}`),text:async()=>JSON.stringify(caseBody)});assert.equal(r.status,code);
+});
+test('journey invalid input is rejected before database write',async()=>{
+ currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null}}});
+ const r=await journeyPOST({...req(`Bearer ${token('aal2')}`),text:async()=>JSON.stringify({...caseBody,actor:'forged'})});
+ assert.equal(r.status,400);assert.ok(!currentClient.rpcCalls.some(c=>c.naam==='owner_save_support_case'));
 });

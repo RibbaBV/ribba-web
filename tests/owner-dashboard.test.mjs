@@ -39,3 +39,15 @@ test('refusal, incomplete or non-evidenced suggestions do not masquerade as advi
  body={status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({suggestions:[{...valid.suggestions[0],evidence:'inactive'}]})}]}]};
  await assert.rejects(generateGrowthInsights(data,'test','test'));
 });
+test('a completed measured onboarding cohort cannot support an activation recommendation',async(t)=>{
+ t.mock.method(globalThis,'fetch',async()=>({ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({suggestions:[{...valid.suggestions[0],evidence:'activation'}]})}]}]})}));
+ await assert.rejects(generateGrowthInsights({...data,onboarding:{total:2,profile:2,lesson_type:2,first_lesson:2}},'test','test'));
+});
+test('journey input to AI contains only aggregate support categories and no case or school data',()=>{
+ const facts=growthEvidence({...data,journey:{captured_at:'2026-10-16T12:00:00Z',quality:{started_at:'2026-10-16T11:00:00Z',enabled:true,failures_30d:0,triggers_active:7},schools:[{name:'private'}],cases:[{id:'private',school_name:'private'}],support_topics:[{topic:'packages',cases:3,schools:2,open:1,secret:'private'}]}});
+ assert.deepEqual(facts.journey.topics,[{topic:'packages',cases:3,schools:2,open:1}]);assert.ok(!JSON.stringify(facts).includes('private'));assert.equal(facts.journey.support_window_days,30);
+});
+test('AI cannot invent a support issue when no support observation exists',async(t)=>{
+ t.mock.method(globalThis,'fetch',async()=>({ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({suggestions:[{...valid.suggestions[0],evidence:'support'}]})}]}]})}));
+ await assert.rejects(generateGrowthInsights(data,'test','test'));
+});
