@@ -6,7 +6,15 @@ export const eventLabels:Record<string,string> = {school_registered:'Rijschoolre
 export const sourceLabels:Record<string,string> = {customer:'Klantaccount',support:'Support',import:'Import',system:'Achtergrondproces',unknown:'Herkomst onbekend'};
 export interface CaseInput {version:1;topic:keyof typeof topics;blocker:keyof typeof blockers;assistance:keyof typeof assistance;resolution:keyof typeof resolutions;status:'open'|'resolved';minutes:number;follow_up:string|null}
 export interface SupportCase extends CaseInput {id:string;school_id:string;school_name:string;revision:number;created_at:string;updated_at:string}
+export interface WorkflowSummary {
+ status:'ready';version:1;window_days:30;
+ quality:{enabled:boolean;started_at:string;maintained_at:string|null;runs_without_opening:number;days_at_limit:number};
+ workflows:{workflow:'wizard'|'package_create';runs:number;schools:number;completed:number;skipped:number;unconfirmed:number;support_runs:number;attempts:number;blocked:number;failed:number}[];
+ steps:{workflow:'wizard'|'package_create';step:string;attempts:number;blocked:number;failed:number;confirmed:number}[];
+ versions:{platform:string;app_version:string;schools:number}[];
+}
 export interface JourneyData {
+ workflows?:WorkflowSummary|{status:'unavailable'};
  status:'ready';captured_at:string;definition_version:number;
  quality:{enabled:boolean;started_at:string;maintained_at:string|null;failures_30d:number;triggers_active:number};
  schools:{id:string;name:string}[];

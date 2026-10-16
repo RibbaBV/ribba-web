@@ -445,7 +445,7 @@ for(const handler of [journeyGET,journeyPOST]){
   test(`journey ${handler.name} ${name} cannot reach private RPC`,async()=>{
    currentClient=makeClient({logError,rpc:{is_platform_owner:{data:owner,error:null}}});
    const r=await handler({...req(auth,'https://mijn.ribba.app/api/support/dashboard/journey'),text:async()=>JSON.stringify(caseBody)});
-   assert.equal(r.status,expected);assert.ok(!currentClient.rpcCalls.some(c=>['owner_school_journey','owner_save_support_case'].includes(c.naam)));
+   assert.equal(r.status,expected);assert.ok(!currentClient.rpcCalls.some(c=>['owner_school_journey','owner_save_support_case','owner_workflow_summary'].includes(c.naam)));
    assert.match(r.headers.get('Cache-Control'),/no-store/);
   });
  }
@@ -464,4 +464,18 @@ test('journey invalid input is rejected before database write',async()=>{
  currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null}}});
  const r=await journeyPOST({...req(`Bearer ${token('aal2')}`),text:async()=>JSON.stringify({...caseBody,actor:'forged'})});
  assert.equal(r.status,400);assert.ok(!currentClient.rpcCalls.some(c=>c.naam==='owner_save_support_case'));
+});
+
+test('workflow read stays behind owner gate and binds verified actor and school',async()=>{
+ const school=caseBody.school_id,workflows={status:'ready',workflows:[],steps:[]};
+ currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_school_journey:{data:{status:'ready',cases:[]},error:null},owner_workflow_summary:{data:workflows,error:null}}});
+ const r=await journeyGET(req(`Bearer ${token('aal2')}`,`https://mijn.ribba.app/api/support/dashboard/journey?school=${school}`));
+ assert.equal(r.status,200);assert.deepEqual(r.body.workflows,workflows);
+ assert.deepEqual(currentClient.rpcCalls.find(c=>c.naam==='owner_workflow_summary').args,{p_actor:USER.id,p_school:school});
+ assert.match(r.headers.get('Cache-Control'),/no-store/);
+});
+test('missing workflow migration preserves support data and explicitly marks unavailable',async()=>{
+ currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_school_journey:{data:{status:'ready',cases:['existing']},error:null},owner_workflow_summary:{data:null,error:{code:'PGRST202'}}}});
+ const r=await journeyGET(req(`Bearer ${token('aal2')}`,'https://mijn.ribba.app/api/support/dashboard/journey'));
+ assert.equal(r.status,200);const body=r.body;assert.deepEqual(body.cases,['existing']);assert.deepEqual(body.workflows,{status:'unavailable'});
 });
