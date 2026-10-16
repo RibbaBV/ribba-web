@@ -41,6 +41,7 @@ export class SupportRequestError extends Error {
 export interface AccessSpec {
   /** Korte, stabiele naam van de handeling, bv. 'schools.list'. */
   action: string;
+  ownerOnly?: boolean;
   /** 0 = geen persoonsgegevens van leerlingen, 1 = gepseudonimiseerd, 2 = identificeerbaar. */
   level: SupportLevel;
   targetType?: string;
@@ -186,6 +187,12 @@ export async function withSupportAccess<T>(
     }
     if (isStaff !== true) {
       return deny('not_platform_staff', 403);
+    }
+
+    if (spec.ownerOnly) {
+      const { data: owner, error: ownerError } = await supabase.rpc('is_platform_owner', { p_user_id: user.id });
+      if (ownerError) return deny('owner_lookup_failed', 503);
+      if (owner !== true) return deny('not_platform_owner', 403);
     }
 
     // Vanaf niveau 1 raken we persoonsgegevens van leerlingen. Dan is "waarom"
