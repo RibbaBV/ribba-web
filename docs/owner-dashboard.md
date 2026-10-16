@@ -27,7 +27,7 @@ inclusief automatisering, geen menselijke DAU. Verwijderde bronrecords kunnen
 historische vergelijkingen beïnvloeden. UI legt dit uit. School-level snapshots
 400 dagen; totaalstanden 1095 dagen; AI-output 90 dagen. Stale >30 uur blokkeert AI.
 
-Acceptatie nog open: productie ownerbinding (geverifieerd onderates86@gmail.com
+Acceptatie nog open: productie ownerbinding (geverifieerd eigenaaraccount
 → vast UUID), migratie/grants/cron, echte tellingen, browser bij beide rollen,
 AI-configuratie en eerste echte providerresponse. Geen productiedata aangepast.
 
