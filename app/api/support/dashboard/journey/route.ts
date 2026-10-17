@@ -9,7 +9,13 @@ export async function GET(req:NextRequest){
   const {data,error}=await supabase.rpc('owner_school_journey',{p_actor:user.id,p_school:school});
   if(error||!data)throw new SupportRequestError('De klantreis is nog niet beschikbaar. Probeer het later opnieuw.',503);
   if(data.status==='not_found')throw new SupportRequestError('Rijschool niet gevonden.',404);
-  return data;
+  // Same owner/MFA/audit gate; missing migration must not break existing support.
+  let workflows;
+  try {
+   const result=await supabase.rpc('owner_workflow_summary',{p_actor:user.id,p_school:school});
+   workflows=result.error||result.data?.status!=='ready'?{status:'unavailable'}:result.data;
+  } catch { workflows={status:'unavailable'}; }
+  return {...data,workflows};
  });
 }
 export async function POST(req:NextRequest){

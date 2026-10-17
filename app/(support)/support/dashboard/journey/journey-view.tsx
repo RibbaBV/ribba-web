@@ -1,7 +1,7 @@
 'use client';
 import {useRef,useState} from 'react';
 import Link from 'next/link';
-import {assistance,blockers,eventLabels,resolutions,sourceLabels,topics,type CaseInput,type JourneyData,type SupportCase} from '@/lib/owner-journey';
+import {assistance,blockers,eventLabels,resolutions,sourceLabels,topics,type CaseInput,type JourneyData,type SupportCase,type WorkflowSummary} from '@/lib/owner-journey';
 import styles from './journey.module.css';
 const format=(s:string)=>new Date(s).toLocaleString('nl-NL',{timeZone:'Europe/Amsterdam',dateStyle:'medium',timeStyle:'short'});
 const initial:CaseInput={version:1,topic:'packages',blocker:'how_to',assistance:'explanation',resolution:'pending',status:'open',minutes:5,follow_up:null};
@@ -17,8 +17,9 @@ export default function JourneyView({token,school,onSchool,unauthorized,error,da
     {(!data.quality.enabled||data.quality.triggers_active!==7||data.quality.failures_30d>0)&&<p className={styles.warning} role="alert">De metingen zijn onvolledig: {!data.quality.enabled?'meten staat uit. ':''}{data.quality.triggers_active!==7?'Niet alle meetpunten zijn actief. ':''}{data.quality.failures_30d>0?`${data.quality.failures_30d} meetfouten in 30 dagen.`:''}</p>}
     {(!data.quality.maintained_at||Date.parse(data.captured_at)-Date.parse(data.quality.maintained_at)>30*3600000)&&<p className={styles.warning}>Het periodieke onderhoud is nog niet bevestigd of loopt achter.</p>}
     <p>{data.summary.events} gebeurtenissen in 30 dagen: {data.summary.customer} via klantaccounts, {data.summary.support} via support, {data.summary.import} via import en {data.summary.unknown} met onbekende herkomst.</p>
-    <details><summary>Betekenis en ontbrekende metingen</summary><p>Een klantaccount bewijst niet dat iemand zonder hulp werkte. Een lesrecord is geen gegeven les. Een pakketrecord bewijst nog niet dat alle pakketregels zijn opgeslagen. Uitnodigingen omvatten verschillende rollen; dit is geen volledige leerlingactivatiefunnel.</p><p>Starts, afgebroken formulieren, foutmeldingen, offline wachttijd en appversies worden in deze eerste versie nog niet gemeten. Geen gebeurtenis betekent dus niet dat een klant vastloopt. Gebeurtenissen blijven 400 dagen bewaard. Open hulpvragen blijven staan; afgeronde vragen vervallen 400 dagen na de laatste wijziging. Bij verwijdering van een school verdwijnen de gekoppelde gegevens.</p></details>
+    <details><summary>Betekenis en ontbrekende metingen</summary><p>Een klantaccount bewijst niet dat iemand zonder hulp werkte. Een lesrecord is geen gegeven les. Een pakketrecord bewijst nog niet dat alle pakketregels zijn opgeslagen. Uitnodigingen omvatten verschillende rollen; dit is geen volledige leerlingactivatiefunnel.</p><p>De databasewaarnemingen tonen geen formulierstarts of invoerproblemen. Aanvullende appmeldingen voor de wizard en pakketaanmaak staan hieronder; andere processen en offline wachttijd zijn nog niet gedekt. Geen gebeurtenis betekent dus niet dat een klant vastloopt. Gebeurtenissen blijven 400 dagen bewaard. Open hulpvragen blijven staan; afgeronde vragen vervallen 400 dagen na de laatste wijziging. Bij verwijdering van een school verdwijnen de gekoppelde gegevens.</p></details>
    </section>
+   <WorkflowPanel data={data.workflows} capturedAt={data.captured_at}/>
    {notice&&<p role="status">{notice}</p>}
    {school&&<section className={styles.card}><h2>Hulpvraag vastleggen</h2><p>Korte registratie van bijvoorbeeld een WhatsApp-gesprek. Gebruik de categorieën; er wordt geen gespreksinhoud opgeslagen.</p><CaseForm key={`${token}:${school}`} onSave={onSave}/></section>}
    <section className={styles.card}><h2>{school?'Supportregistraties':'Openstaande hulpvragen'}</h2><p>Maximaal 100 registraties. Open vragen en eerstvolgende afspraken staan bovenaan.</p>
@@ -47,4 +48,25 @@ function CaseForm({existing,onSave}:{existing?:SupportCase;onSave:(id:string,rev
   </fieldset>
   {error&&<p role="alert">{error}</p>}<button disabled={busy} type="submit">{busy?'Opslaan…':existing?'Wijzigingen opslaan':'Hulpvraag opslaan'}</button>
  </form>;
+}
+
+const workflowLabels={wizard:'Rijschool instellen',package_create:'Pakket aanmaken'};
+const stepLabels:Record<string,string>={bedrijf:'Bedrijfsgegevens',lesduur:'Lesduur',opleiding:'Opleiding',planning:'Planningsmodus',afsluiten:'Wizard afsluiten',pakket:'Pakket opslaan'};
+function WorkflowPanel({data,capturedAt}:{data?:WorkflowSummary|{status:'unavailable'};capturedAt:string}){
+ return <section className={styles.card}><h2>Waar lopen klanten vast?</h2>
+ {!data||data.status!=='ready'?<p>Deze aanvullende metingen zijn nog niet beschikbaar. Het overige supportoverzicht blijft bruikbaar.</p>:<>
+ <p>Appmeldingen vanaf {format(data.quality.started_at)}. Dit overzicht volgt schermbezoeken die in de laatste 30 dagen zijn gestart.</p>
+ {!data.quality.enabled&&<p className={styles.warning}>Deze metingen staan uit. De getallen hieronder zijn eerder ontvangen meldingen.</p>}
+ {(!data.quality.maintained_at||Date.parse(capturedAt)-Date.parse(data.quality.maintained_at)>30*3600000)&&<p className={styles.warning}>Onderhoud van deze metingen is nog niet bevestigd of loopt achter.</p>}
+ {data.quality.runs_without_opening>0&&<p className={styles.warning}>{data.quality.runs_without_opening} bezoeken missen hun startmelding en tellen daarom niet mee in dit overzicht.</p>}
+ {data.quality.days_at_limit>0&&<p className={styles.warning}>De meetlimiet is op {data.quality.days_at_limit} rijschooldagen bereikt. Meldingen kunnen ontbreken.</p>}
+ {data.workflows.length===0?<p>Nog geen gemeten schermbezoeken. Oudere appversies sturen deze meldingen niet; dit betekent niet dat er geen gebruik is.</p>:data.workflows.map(w=><article className={styles.case} key={w.workflow}>
+ <h3>{workflowLabels[w.workflow]}</h3><p>{w.runs} schermbezoeken bij {w.schools} rijscholen · {w.completed} afgerond · {w.skipped} bewust overgeslagen · {w.unconfirmed} zonder ontvangen afronding.</p>
+ <p>{w.attempts} verzendpogingen · {w.blocked} invoerblokkades · {w.failed} {w.failed===1?'opslagpoging':'opslagpogingen'} zonder bevestiging.{w.support_runs>0?` ${w.support_runs} bezoeken via supportaccounts.`:''}</p>
+ <ul>{data.steps.filter(s=>s.workflow===w.workflow&&s.attempts>0).map(s=><li key={s.step}>{stepLabels[s.step]??'Stap'}: {s.attempts} pogingen, {s.blocked} invoerblokkades, {s.failed} niet bevestigd.</li>)}</ul>
+ </article>)}
+ <details><summary>Hoe lees je deze metingen?</summary><p>Een schermbezoek kan meerdere pogingen bevatten. Een ontbrekende afronding bewijst geen afhaken: iemand kan later verdergaan of een melding kan verloren zijn gegaan. Appmeldingen zijn geen onafhankelijk bewijs van databaseopslag. Een afgeronde wizard betekent niet dat alle rijschoolinstellingen compleet zijn.</p><p>Alleen wizard en pakketaanmaak worden gemeten, vanaf een appversie met deze meetpunten. Geen formulierinhoud of fouttekst; maximaal 128 meldingen per bezoek en 2.000 per rijschool per UTC-dag. Geen offline herverzending. Bewaartermijn: 90 dagen.</p>
+ {data.versions.length>0&&<p>Ontvangen van: {data.versions.map(v=>`${v.platform} ${v.app_version} (${v.schools} rijscholen)`).join(' · ')}. Dit bewijst niet welk deel van alle apparaten meet.</p>}</details>
+ </>}
+ </section>;
 }
