@@ -161,7 +161,7 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
         <Link href={`/support/${id}/bewerken`} className={styles.primaryButton}>Schoolgegevens bewerken <span aria-hidden="true">↗</span></Link>
       </div>
       <nav className={styles.navigation} aria-label="Onderdelen van het schooldossier">
-        {[['overzicht','Overzicht'],['gegevens','Schoolgegevens'],['account','Account en koppelingen'],['activiteit','Gebeurtenissen']].map(([key,label])=><a key={key} href={`#${key}`} onClick={()=>setSection(key)} aria-current={section===key?'page':undefined}>{label}</a>)}
+        {[['overzicht','Overzicht'],['gegevens','Schoolgegevens'],['account','Account en koppelingen'],['activiteit','Gebeurtenissen']].map(([key,label])=><a key={key} href={`#${key}`} onClick={event=>{if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();setSection(key);if(window.location.hash!==`#${key}`)window.history.pushState(null,'',`#${key}`);}} aria-current={section===key?'page':undefined}>{label}</a>)}
       </nav>
 
       {licentie?.is_proef && (
