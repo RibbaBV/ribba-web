@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import RibbaLogo from '../../../components/RibbaLogo';
 import {topics} from '@/lib/owner-journey';
 import {attentionLabels,type GrowthDashboard} from '@/lib/owner-dashboard';
 import styles from './dashboard.module.css';
@@ -10,7 +9,6 @@ export default function DashboardView({data,error,collecting,unauthorized,days,o
 }){
  const olderInsight=!!(insight&&data&&(Date.parse(insight.snapshot_at)!==Date.parse(data.captured_at)||(insight.result.evidence?.days!==undefined&&insight.result.evidence.days!==days)));
  return <div className={styles.page}>
-  <aside className={styles.sidebar}><Link className={styles.brand} href="/support/dashboard"><RibbaLogo height={25}/></Link><nav className={styles.nav} aria-label="Beheer"><Link aria-current="page" href="/support/dashboard">Overzicht</Link><Link href="/support/dashboard/journey">Klantreis en support</Link><Link href="/support">Rijscholen</Link></nav><span className={styles.owner}>Alleen eigenaar</span></aside>
   <main className={styles.main}>
 
    <div className={styles.heading}><div><p className={styles.eyebrow}>RIBBA · BEHEER</p><h1>Grip op je groei.</h1><p>Van inzicht naar de volgende stap.</p></div><div className={styles.period} aria-label="Periode">{([7,30] as const).map(n=><button key={n} onClick={()=>onDays(n)} aria-pressed={days===n}>{n} dagen</button>)}</div></div>

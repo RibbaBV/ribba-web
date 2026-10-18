@@ -3,6 +3,7 @@
 import { use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSupportToken } from '../../client';
+import { useSupportNavigationGuard } from '../../support-shell';
 import { PROFILE_FIELDS, PROFILE_LABELS, validateProfileChanges, type ProfileField, type SchoolProfile } from '@/lib/support-school-profile';
 import styles from './profile.module.css';
 
@@ -42,6 +43,7 @@ export default function SchoolgegevensBewerken({ params }: { params: Promise<{ i
   const active = loaded?.token === token && loaded.id === id ? loaded : null;
   const visibleMessage = message?.token === token && message.id === id ? message : null;
   const dirty = active && PROFILE_FIELDS.some(k => active.draft[k] !== active.profile[k]);
+  useSupportNavigationGuard(!!dirty);
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
@@ -83,7 +85,7 @@ export default function SchoolgegevensBewerken({ params }: { params: Promise<{ i
     }} />
   </label>;
   return <main className={styles.page}>
-    <Link href={back} onClick={e => { if (dirty && !window.confirm('Je hebt niet-opgeslagen wijzigingen. Toch teruggaan?')) e.preventDefault(); }}>← Terug naar schooldossier</Link>
+    <Link href={back}>← Terug naar schooldossier</Link>
     <header><p className={styles.eyebrow}>Ribba Support</p><h1>Schoolgegevens bewerken</h1><p>{active?.profile.name ?? 'Gegevens ophalen…'}</p></header>
     {visibleMessage && <p role={visibleMessage.success ? 'status' : 'alert'} className={visibleMessage.success ? styles.success : styles.error}>{visibleMessage.text}</p>}
     {!active ? <><p>{visibleMessage ? 'De gegevens konden niet worden geladen.' : 'Laden…'}</p><button onClick={() => setReload(n => n + 1)}>Opnieuw proberen</button></> : <form onSubmit={save}>

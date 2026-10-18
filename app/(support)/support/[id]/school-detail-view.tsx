@@ -142,7 +142,7 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
 
   return (
     <div className={styles.page}>
-      <header className={styles.topbar}><Link href="/support" aria-label="Ribba Support overzicht"><RibbaLogo height={25} /></Link><span>Support</span><OwnerDashboardLink /></header>
+      <header className={styles.topbar} data-support-local-navigation><Link href="/support" aria-label="Ribba Support overzicht"><RibbaLogo height={25} /></Link><span>Support</span><OwnerDashboardLink /></header>
       <main className={styles.content}>
       <Link href="/support" style={s.terug}>← Alle rijscholen</Link>
 
