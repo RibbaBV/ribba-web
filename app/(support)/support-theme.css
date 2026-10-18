@@ -1,0 +1,21 @@
+/* Only the isolated support document loads this theme. No auth or data changes. */
+.support-theme {
+ --support-bg:#070f1c; --support-surface:#101e31; --support-input:#172a43;
+ --support-hover:#182d48; --support-text:#edf4ff; --support-muted:#a8bbd5;
+ --support-line:#304561; --support-blue:#357ad2; --support-link:#a8ceff;
+ --support-ok:#90ebc9; --support-ok-bg:#123a32;
+ --support-warning:#f5d597; --support-warning-bg:#3b2e1a;
+ --support-error:#ffb5bd; --support-error-bg:#421f2a;
+ background:radial-gradient(ellipse at 90% 0%,#15376a 0,transparent 55%),var(--support-bg);
+ background-attachment:fixed;color:var(--support-text);color-scheme:dark;
+ min-height:100vh;
+}
+.support-theme :is(input,select,textarea){color:var(--support-text);background:var(--support-input);accent-color:#589dff}
+.support-theme input::placeholder{color:var(--support-muted);opacity:1}
+.support-theme :is(a,button,input,select,textarea,summary):focus-visible{outline:3px solid #86bfff;outline-offset:3px}
+.support-theme :is(button,input,select,textarea):disabled{opacity:.55;cursor:not-allowed}
+.support-theme svg[aria-label="Ribba"] text{fill:#f1f6ff}
+.support-theme a{color:var(--support-link)}
+.support-theme img[alt="QR-code voor de authenticator-app"]{background:white;padding:8px;box-sizing:content-box;border-radius:12px}
+@media(prefers-reduced-motion:reduce){.support-theme *{scroll-behavior:auto!important;transition:none!important}}
+.support-theme :is(h1,h2,h3,h4){color:var(--support-text)}

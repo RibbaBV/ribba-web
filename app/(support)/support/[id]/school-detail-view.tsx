@@ -16,6 +16,7 @@
 // proef" — en dat is precies het gesprek dat support voert.
 
 import Link from 'next/link';
+import OwnerDashboardLink from '../owner-dashboard-link';
 import { withCbrRecovery, type SupportEvent } from '@/lib/support-event-recovery';
 
 interface Stap {
@@ -141,7 +142,7 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
 
   return (
     <div className={styles.page}>
-      <header className={styles.topbar}><Link href="/support" aria-label="Ribba Support overzicht"><RibbaLogo height={25} /></Link><span>Support</span></header>
+      <header className={styles.topbar}><Link href="/support" aria-label="Ribba Support overzicht"><RibbaLogo height={25} /></Link><span>Support</span><OwnerDashboardLink /></header>
       <main className={styles.content}>
       <Link href="/support" style={s.terug}>← Alle rijscholen</Link>
 
@@ -361,10 +362,10 @@ function Rij({ label, waarde }: { label: string; waarde: string | null }) {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  terug: { fontSize: 13, color: '#2563EB', textDecoration: 'none' },
-  voetnoot: { fontSize: 12, color: '#78716C', margin: '-6px 0 12px' },
+  terug: { fontSize: 13, color: 'var(--support-blue)', textDecoration: 'none' },
+  voetnoot: { fontSize: 12, color: 'var(--support-muted)', margin: '-6px 0 12px' },
   signaal: {
-    background: '#FFFBEB', color: '#92400E', padding: '10px 14px',
+    background: 'var(--support-warning-bg)', color: 'var(--support-warning)', padding: '10px 14px',
     borderRadius: 10, fontSize: 14, marginBottom: 20,
   },
   grid: {
@@ -375,42 +376,42 @@ const s: Record<string, React.CSSProperties> = {
   bolOk: { width: 9, height: 9, borderRadius: 999, background: '#16A34A', flexShrink: 0 },
   bolLeeg: { width: 9, height: 9, borderRadius: 999, background: '#CBD5E1', flexShrink: 0 },
   bolBlok: { width: 9, height: 9, borderRadius: 999, background: '#D97706', flexShrink: 0 },
-  stapLabel: { fontSize: 14, color: '#1C1917', flex: 1 },
-  stapLabelOpen: { fontSize: 14, color: '#78716C', flex: 1 },
-  stapDatum: { fontSize: 12, color: '#78716C', whiteSpace: 'nowrap' },
+  stapLabel: { fontSize: 14, color: 'var(--support-text)', flex: 1 },
+  stapLabelOpen: { fontSize: 14, color: 'var(--support-muted)', flex: 1 },
+  stapDatum: { fontSize: 12, color: 'var(--support-muted)', whiteSpace: 'nowrap' },
   lijst: { display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', margin: 0, fontSize: 13 },
-  dt: { color: '#78716C' },
-  dd: { color: '#1C1917', margin: 0, wordBreak: 'break-word' },
+  dt: { color: 'var(--support-muted)' },
+  dd: { color: 'var(--support-text)', margin: 0, wordBreak: 'break-word' },
   tabelWrap: { overflowX: 'auto' },
   tabel: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   th: {
-    textAlign: 'left', padding: '13px 12px', fontSize: 11, fontWeight: 600, color: '#78716C',
-    textTransform: 'uppercase', letterSpacing: 0.4, borderBottom: '1px solid #E2E8F0', whiteSpace: 'nowrap',
+    textAlign: 'left', padding: '13px 12px', fontSize: 11, fontWeight: 600, color: 'var(--support-muted)',
+    textTransform: 'uppercase', letterSpacing: 0.4, borderBottom: '1px solid var(--support-line)', whiteSpace: 'nowrap',
   },
-  td: { padding: '13px 12px', borderBottom: '1px solid #F1F5F9', color: '#1C1917', whiteSpace: 'nowrap' },
-  tdDetail: { padding: '13px 12px', borderBottom: '1px solid #F1F5F9', color: '#475569' },
-  rijFout: { background: '#FEF2F2' },
+  td: { padding: '13px 12px', borderBottom: '1px solid var(--support-line)', color: 'var(--support-text)', whiteSpace: 'nowrap' },
+  tdDetail: { padding: '13px 12px', borderBottom: '1px solid var(--support-line)', color: 'var(--support-muted)' },
+  rijFout: { background: 'var(--support-error-bg)' },
   signaalRood: {
-    background: '#FEF2F2', color: '#991B1B', padding: '10px 12px',
+    background: 'var(--support-error-bg)', color: 'var(--support-error)', padding: '10px 12px',
     borderRadius: 10, fontSize: 13, marginBottom: 12,
   },
   // Een proef die nog ruim loopt is informatie, geen waarschuwing. Pas onder de
   // week kleurt hij amber (s.signaal) en na afloop rood.
   signaalInfo: {
-    background: '#EFF6FF', color: '#1E40AF', padding: '10px 14px',
+    background: 'var(--support-input)', color: 'var(--support-link)', padding: '10px 14px',
     borderRadius: 10, fontSize: 14, marginBottom: 20,
   },
-  herstelMoment: { color: '#166534', fontSize: 13, marginTop: 4 },
+  herstelMoment: { color: 'var(--support-ok)', fontSize: 13, marginTop: 4 },
   hersteldBadge: {
-    background: '#ECFDF5', color: '#166534', padding: '1px 7px', borderRadius: 999,
+    background: 'var(--support-ok-bg)', color: 'var(--support-ok)', padding: '1px 7px', borderRadius: 999,
     fontSize: 11, fontWeight: 600, marginRight: 8,
   },
   foutBadge: {
-    background: '#FEE2E2', color: '#991B1B', padding: '1px 7px', borderRadius: 999,
+    background: 'var(--support-error-bg)', color: 'var(--support-error)', padding: '1px 7px', borderRadius: 999,
     fontSize: 11, fontWeight: 600, marginRight: 8,
   },
   intern: {
-    background: '#EEF2FF', color: '#3730A3', padding: '2px 9px',
+    background: 'var(--support-input)', color: 'var(--support-link)', padding: '2px 9px',
     borderRadius: 999, fontSize: 11, fontWeight: 600,
   },
 };

@@ -14,5 +14,5 @@ export default function OwnerDashboardLink(){
    .catch(()=>{});
   return()=>controller.abort();
  },[token,isCurrentToken]);
- return token&&allowedToken===token?<Link href="/support/dashboard" style={{color:'#2563eb'}}>Dashboard ↗</Link>:null;
+ return token&&allowedToken===token?<Link href="/support/dashboard" style={{color:'var(--support-link, #a8ceff)'}}>Dashboard ↗</Link>:null;
 }
