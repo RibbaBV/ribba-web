@@ -44,12 +44,6 @@ export default function SchoolgegevensBewerken({ params }: { params: Promise<{ i
   const visibleMessage = message?.token === token && message.id === id ? message : null;
   const dirty = active && PROFILE_FIELDS.some(k => active.draft[k] !== active.profile[k]);
   useSupportNavigationGuard(!!dirty);
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!active || !token || busy.current) return;

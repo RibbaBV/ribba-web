@@ -52,6 +52,7 @@ export function SupportFrame({ owner, path, dirty, children }: { owner: boolean;
   return (
     <div className={owner ? styles.shell : undefined} onClickCapture={event => {
         const link = (event.target as HTMLElement).closest('a');
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || (link?.target && link.target !== '_self') || link?.hasAttribute('download')) return;
         const destination = link ? new URL(link.href, window.location.href) : null;
         const leaving = destination && (destination.pathname !== window.location.pathname || destination.search !== window.location.search);
         if (dirty && leaving && !window.confirm('Je hebt niet-opgeslagen wijzigingen. Toch deze pagina verlaten?')) {
