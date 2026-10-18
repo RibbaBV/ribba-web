@@ -7,7 +7,7 @@ const format=(s:string)=>new Date(s).toLocaleString('nl-NL',{timeZone:'Europe/Am
 const initial:CaseInput={version:1,topic:'packages',blocker:'how_to',assistance:'explanation',resolution:'pending',status:'open',minutes:5,follow_up:null};
 export default function JourneyView({token,school,onSchool,unauthorized,error,data,notice,onRetry,onSave}:{token:string|null;school:string;onSchool:(id:string)=>void;unauthorized:boolean;error?:string;data?:JourneyData;notice:string|null;onRetry:()=>void;onSave:(id:string,revision:number,input:CaseInput)=>Promise<void>}){
  return <main className={styles.page}>
-  <nav><Link href="/support/dashboard">← Dashboard</Link><span>Alleen eigenaar</span></nav>
+  <nav aria-label="Beheer"><Link href="/support/dashboard">← Dashboard</Link><Link href="/support">Rijscholen</Link><span>Alleen eigenaar</span></nav>
   <header><h1>Klantreis en support</h1><p>Zie wat er gebeurt, leg je hulp vast en volg openstaande vragen op.</p></header>
   {unauthorized?<p><Link href="/support">Log opnieuw in met tweefactor.</Link></p>:error?<div role="alert"><p>{error}</p><button onClick={()=>onRetry()}>Opnieuw proberen</button></div>:!data?<p role="status">Klantreis laden…</p>:<>
    <label className={styles.selector}>Rijschool<select value={school} onChange={e=>{onSchool(e.target.value);}}><option value="">Alle rijscholen · overzicht</option>{data.schools.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>

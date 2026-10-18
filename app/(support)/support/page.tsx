@@ -328,26 +328,26 @@ export default function SupportPage() {
 const s: Record<string, React.CSSProperties> = {
   container: {
     minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: '#F8FAFC', padding: 24,
+    background: 'transparent', padding: 24,
   },
   kaart: {
-    background: '#fff', borderRadius: 16, padding: 32, width: '100%', maxWidth: 400,
+    background: 'linear-gradient(130deg,#172a42,#0c1a2d)', border: '1px solid var(--support-line)', borderRadius: 20, padding: 32, width: '100%', maxWidth: 400,
     boxShadow: '0 1px 3px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: 4,
   },
-  stil: { fontSize: 14, color: '#64748B', margin: '0 0 16px' },
+  stil: { fontSize: 14, color: 'var(--support-muted)', margin: '0 0 16px' },
   input: {
-    width: '100%', padding: '12px 14px', border: '1px solid #E2E8F0', borderRadius: 10,
-    fontSize: 15, marginTop: 10, boxSizing: 'border-box',
+    width: '100%', padding: '12px 14px', border: '1px solid var(--support-line)', borderRadius: 10,
+    background: 'var(--support-input)', color: 'var(--support-text)', fontSize: 15, marginTop: 10, boxSizing: 'border-box',
   },
   knop: {
     width: '100%', marginTop: 14, padding: '12px 16px', border: 'none', borderRadius: 10,
-    background: '#2563EB', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer',
+    background: 'var(--support-blue)', color: 'var(--support-text)', fontSize: 15, fontWeight: 600, cursor: 'pointer',
   },
   tekstknop: {
-    marginTop: 14, background: 'none', border: 'none', color: '#64748B',
+    marginTop: 14, background: 'none', border: 'none', color: 'var(--support-muted)',
     fontSize: 14, cursor: 'pointer', padding: 0, textAlign: 'left',
   },
-  fout: { color: '#B91C1C', fontSize: 14, marginTop: 12 },
+  fout: { color: 'var(--support-error)', fontSize: 14, marginTop: 12 },
   qr: { width: 200, height: 200, alignSelf: 'center', margin: '8px 0' },
-  geheim: { fontSize: 12, color: '#64748B', wordBreak: 'break-all', margin: '0 0 8px' },
+  geheim: { fontSize: 12, color: 'var(--support-muted)', wordBreak: 'break-all', margin: '0 0 8px' },
 };
