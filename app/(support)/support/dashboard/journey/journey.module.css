@@ -2,4 +2,4 @@
 
 .page{font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;min-height:100vh}.page a,.page summary{color:var(--support-link)}.page h1{font-weight:650}.page h2{font-size:19px;font-weight:600}
 .metrics article,.card{background:linear-gradient(130deg,#172a42aa,#0c1a2ddd);border-color:var(--support-line);box-shadow:inset 0 1px 0 #ffffff06,0 12px 32px #0002}
-.page button{background:linear-gradient(#3979d3,#225eae);color:white;min-height:44px}.page select,.page input{box-sizing:border-box;background:var(--support-input);color:var(--support-text)}.form fieldset>*{min-width:0}.page nav{flex-wrap:wrap}.page summary{min-height:40px}.case{overflow-wrap:anywhere}
+.page button{background:linear-gradient(#2f6fba,#225eae);color:white;min-height:44px}.page select,.page input{box-sizing:border-box;background:var(--support-input);color:var(--support-text)}.form fieldset>*{min-width:0}.page nav{flex-wrap:wrap}.page summary{min-height:40px}.case{overflow-wrap:anywhere}

@@ -27,5 +27,5 @@
 
 .page{min-height:100vh}.page a{color:var(--support-link)}
 .section{background:linear-gradient(130deg,#172a42aa,#0c1a2ddd);border-color:var(--support-line);box-shadow:inset 0 1px 0 #ffffff06,0 12px 32px #0002}
-.field input{background:var(--support-input);color:var(--support-text);min-height:46px}.page button[type=submit]{background:linear-gradient(#3979d3,#225eae);color:white}.page button{min-height:44px}
+.field input{background:var(--support-input);color:var(--support-text);min-height:46px}.page button[type=submit]{background:linear-gradient(#2f6fba,#225eae);color:white}.page button{min-height:44px}
 .page a:focus-visible{outline:3px solid #86bfff;outline-offset:4px}.field{min-width:0}

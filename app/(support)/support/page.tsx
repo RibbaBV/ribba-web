@@ -341,7 +341,7 @@ const s: Record<string, React.CSSProperties> = {
   },
   knop: {
     width: '100%', marginTop: 14, padding: '12px 16px', border: 'none', borderRadius: 10,
-    background: 'var(--support-blue)', color: 'var(--support-text)', fontSize: 15, fontWeight: 600, cursor: 'pointer',
+    background: '#2f6fba', color: 'var(--support-text)', fontSize: 15, fontWeight: 600, cursor: 'pointer',
   },
   tekstknop: {
     marginTop: 14, background: 'none', border: 'none', color: 'var(--support-muted)',
