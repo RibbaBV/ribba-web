@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import SchoolOverview from './school-overview';
 import RibbaLogo from '../../components/RibbaLogo';
 import type { School } from './school';
@@ -24,6 +25,8 @@ type Fase = 'laden' | 'login' | 'geen-toegang' | 'tweefactor-instellen' | 'tweef
 
 export default function SupportPage() {
   const { token, status, isCurrentToken } = useSupportToken();
+  const router = useRouter();
+  const [afterLogin, setAfterLogin] = useState(false);
   const [fase, setFase] = useState<Fase>('laden');
   const [fout, setFout] = useState('');
   const [bezig, setBezig] = useState(false);
@@ -126,6 +129,7 @@ export default function SupportPage() {
     setFout(''); setBezig(true);
     const { error } = await getSupabase().auth.signInWithPassword({ email, password: wachtwoord });
     if (error) { setBezig(false); setFout('Inloggen mislukt.'); return; }
+    setAfterLogin(true);
     setWachtwoord('');
     await naarFase(await bepaalFase());
     setBezig(false);
@@ -144,6 +148,7 @@ export default function SupportPage() {
     });
     setBezig(false);
     if (error) { setFout('Code klopt niet. Probeer de volgende.'); return; }
+    setAfterLogin(true);
     setCode(''); setQr(''); setGeheim('');
     await naarFase(await bepaalFase());
   };
@@ -153,6 +158,22 @@ export default function SupportPage() {
     setSchoolResultaat({ token: null, scholen: [] });
     setFase('login');
   };
+
+  // Redirect only after an actual login/MFA completion; /support remains the school list.
+  useEffect(() => {
+    if (!afterLogin || fase !== 'portaal' || !token) return;
+    const controller = new AbortController();
+    void fetch('/api/support/dashboard/access', {
+      headers: { Authorization: `Bearer ${token}` }, signal: controller.signal, cache: 'no-store',
+    }).then(async res => res.ok && (await res.json()).owner === true).then(owner => {
+      if (controller.signal.aborted || !isCurrentToken(token)) return;
+      setAfterLogin(false);
+      if (owner) router.replace('/support/dashboard');
+    }).catch(() => {
+      if (!controller.signal.aborted && isCurrentToken(token)) setAfterLogin(false);
+    });
+    return () => controller.abort();
+  }, [afterLogin, fase, token, isCurrentToken, router]);
 
   // Scholen ophalen zodra we binnen zijn.
   useEffect(() => {

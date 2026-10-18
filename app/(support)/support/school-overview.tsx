@@ -28,7 +28,7 @@ export default function SchoolOverview({ scholen, fout, toonIntern, onToonIntern
     && `${school.school_name} ${school.city ?? ''}`.toLocaleLowerCase('nl').includes(query));
   const setup = scholen.filter(school => !school.onboarding_gereed).length;
   return <div className={styles.page}>
-    <header className={styles.topbar}>
+    <header className={styles.topbar} data-support-overview-actions>
       <div className={styles.brand}><RibbaLogo height={25} /><span>Support</span></div>
       <OwnerDashboardLink />
       <button className={styles.quietButton} onClick={onUitloggen}>Uitloggen <span aria-hidden="true">↗</span></button>

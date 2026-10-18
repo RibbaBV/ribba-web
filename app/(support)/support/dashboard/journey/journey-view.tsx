@@ -1,16 +1,18 @@
 'use client';
 import {useRef,useState} from 'react';
 import Link from 'next/link';
+import {useSupportNavigationGuard,useSupportNavigationConfirm} from '../../support-shell';
 import {assistance,blockers,eventLabels,resolutions,sourceLabels,topics,type CaseInput,type JourneyData,type SupportCase,type WorkflowSummary} from '@/lib/owner-journey';
 import styles from './journey.module.css';
 const format=(s:string)=>new Date(s).toLocaleString('nl-NL',{timeZone:'Europe/Amsterdam',dateStyle:'medium',timeStyle:'short'});
 const initial:CaseInput={version:1,topic:'packages',blocker:'how_to',assistance:'explanation',resolution:'pending',status:'open',minutes:5,follow_up:null};
 export default function JourneyView({token,school,onSchool,unauthorized,error,data,notice,onRetry,onSave}:{token:string|null;school:string;onSchool:(id:string)=>void;unauthorized:boolean;error?:string;data?:JourneyData;notice:string|null;onRetry:()=>void;onSave:(id:string,revision:number,input:CaseInput)=>Promise<void>}){
+ const confirmLeave=useSupportNavigationConfirm();
  return <main className={styles.page}>
-  <nav aria-label="Beheer"><Link href="/support/dashboard">← Dashboard</Link><Link href="/support">Rijscholen</Link><span>Alleen eigenaar</span></nav>
+  <nav aria-label="Beheer" data-support-local-navigation><Link href="/support/dashboard">← Dashboard</Link><Link href="/support">Rijscholen</Link><span>Alleen eigenaar</span></nav>
   <header><h1>Klantreis en support</h1><p>Zie wat er gebeurt, leg je hulp vast en volg openstaande vragen op.</p></header>
   {unauthorized?<p><Link href="/support">Log opnieuw in met tweefactor.</Link></p>:error?<div role="alert"><p>{error}</p><button onClick={()=>onRetry()}>Opnieuw proberen</button></div>:!data?<p role="status">Klantreis laden…</p>:<>
-   <label className={styles.selector}>Rijschool<select value={school} onChange={e=>{onSchool(e.target.value);}}><option value="">Alle rijscholen · overzicht</option>{data.schools.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+   <label className={styles.selector}>Rijschool<select value={school} onChange={e=>{if(confirmLeave())onSchool(e.target.value);}}><option value="">Alle rijscholen · overzicht</option>{data.schools.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
    {school&&<Link href={`/support/${school}`}>Rijschool openen ↗</Link>}
    <div className={styles.metrics}><article><strong>{data.support_summary.open}</strong><span>Openstaande hulpvragen</span></article><article><strong>{data.support_summary.due}</strong><span>Vandaag of eerder opvolgen</span></article><article><strong>{data.support_summary.minutes_30d} min</strong><span>Hulpvragen gestart in 30 dagen</span></article></div>
    <section className={styles.card}><h2>Wat weten we al?</h2><p>Metingen vanaf {format(data.quality.started_at)}. Alleen waargenomen databasehandelingen; eerdere stappen kunnen al afgerond zijn.</p>
@@ -25,7 +27,7 @@ export default function JourneyView({token,school,onSchool,unauthorized,error,da
    <section className={styles.card}><h2>{school?'Supportregistraties':'Openstaande hulpvragen'}</h2><p>Maximaal 100 registraties. Open vragen en eerstvolgende afspraken staan bovenaan.</p>
     {data.cases.length===0?<p>Geen supportregistraties in dit overzicht.</p>:data.cases.map(c=><article className={styles.case} key={c.id}>
      <div><strong>{topics[c.topic]} · {c.status==='open'?'Open':'Afgerond'}</strong><p>{c.school_name} · {format(c.created_at)}</p><p>{blockers[c.blocker]} · {assistance[c.assistance]} · {c.minutes} minuten</p><p>{resolutions[c.resolution]}{c.follow_up?` · Opvolgen: ${new Date(c.follow_up+'T12:00:00Z').toLocaleDateString('nl-NL')}`:''}</p></div>
-     {school?<details><summary>Aanpassen of afronden</summary><CaseForm key={`${token}:${c.id}:${c.revision}`} existing={c} onSave={onSave}/></details>:<button onClick={()=>onSchool(c.school_id)}>Klantreis openen</button>}
+     {school?<details><summary>Aanpassen of afronden</summary><CaseForm key={`${token}:${c.id}:${c.revision}`} existing={c} onSave={onSave}/></details>:<button onClick={()=>{if(confirmLeave())onSchool(c.school_id);}}>Klantreis openen</button>}
     </article>)}
    </section>
    {school&&<section className={styles.card}><h2>Gebeurtenissen</h2><p>Laatste 100 waarnemingen, nieuwste bovenaan. Geen historische aanvulling.</p>{data.events.length===0?<p>Nog geen gebeurtenissen sinds de meetstart.</p>:<ol className={styles.timeline}>{data.events.map(e=><li key={e.id}><strong>{eventLabels[e.event_name]??'Gebeurtenis'}</strong><span>{sourceLabels[e.source]??'Herkomst onbekend'} · {format(e.occurred_at)}</span></li>)}</ol>}</section>}
@@ -34,7 +36,9 @@ export default function JourneyView({token,school,onSchool,unauthorized,error,da
 }
 function CaseForm({existing,onSave}:{existing?:SupportCase;onSave:(id:string,revision:number,input:CaseInput)=>Promise<void>}){
  const [input,setInput]=useState<CaseInput>(existing?{version:1,topic:existing.topic,blocker:existing.blocker,assistance:existing.assistance,resolution:existing.resolution,status:existing.status,minutes:existing.minutes,follow_up:existing.follow_up}:initial);
+ const baseline=existing?{version:1,topic:existing.topic,blocker:existing.blocker,assistance:existing.assistance,resolution:existing.resolution,status:existing.status,minutes:existing.minutes,follow_up:existing.follow_up}:initial;
  const [busy,setBusy]=useState(false),[error,setError]=useState('');
+ useSupportNavigationGuard(busy||JSON.stringify(input)!==JSON.stringify(baseline));
  const id=useRef<string|null>(existing?.id??null);
  const inFlight=useRef(false);
  return <form className={styles.form} onSubmit={async e=>{e.preventDefault();if(inFlight.current)return;inFlight.current=true;setBusy(true);setError('');id.current??=crypto.randomUUID();try{await onSave(id.current,existing?.revision??0,input);if(!existing){id.current=null;setInput(initial);}}catch(err){setError(err instanceof Error?err.message:'Geen verbinding. Probeer opnieuw.');}finally{inFlight.current=false;setBusy(false);}}}>

@@ -11,3 +11,6 @@
 @media(max-width:350px){.stats{grid-template-columns:1fr}.sidebar{padding:14px}.owner{font-size:10px}}
 @media(prefers-reduced-motion:reduce){.page *{transition:none!important;scroll-behavior:auto!important}}
 .brand svg{filter:brightness(0) invert(1)}
+
+/* Navigation belongs to the shared support layout. */
+.page{display:block}

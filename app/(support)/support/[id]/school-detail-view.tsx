@@ -16,6 +16,7 @@
 // proef" — en dat is precies het gesprek dat support voert.
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import OwnerDashboardLink from '../owner-dashboard-link';
 import { withCbrRecovery, type SupportEvent } from '@/lib/support-event-recovery';
 
@@ -131,6 +132,12 @@ import RibbaLogo from '../../../components/RibbaLogo';
 
 export default function SchoolDetailView({ id, detail, events }: { id: string; detail: Detail; events: SupportEvent[] }) {
   const { school, onboarding } = detail;
+  const [section, setSection] = useState('overzicht');
+  useEffect(() => {
+    const sync = () => { const hash = window.location.hash.slice(1); setSection(['overzicht','gegevens','account','activiteit'].includes(hash) ? hash : 'overzicht'); };
+    sync(); window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, [id]);
   // De eerste stap die nog niet is gezet: daar is het gesprek over.
   const gestopt = onboarding.find((stap) => !stap.gereed);
 
@@ -142,7 +149,7 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
 
   return (
     <div className={styles.page}>
-      <header className={styles.topbar}><Link href="/support" aria-label="Ribba Support overzicht"><RibbaLogo height={25} /></Link><span>Support</span><OwnerDashboardLink /></header>
+      <header className={styles.topbar} data-support-local-navigation><Link href="/support" aria-label="Ribba Support overzicht"><RibbaLogo height={25} /></Link><span>Support</span><OwnerDashboardLink /></header>
       <main className={styles.content}>
       <Link href="/support" style={s.terug}>← Alle rijscholen</Link>
 
@@ -154,7 +161,7 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
         <Link href={`/support/${id}/bewerken`} className={styles.primaryButton}>Schoolgegevens bewerken <span aria-hidden="true">↗</span></Link>
       </div>
       <nav className={styles.navigation} aria-label="Onderdelen van het schooldossier">
-        <a href="#overzicht">Overzicht</a><a href="#gegevens">Schoolgegevens</a><a href="#account">Account en koppelingen</a><a href="#activiteit">Activiteit</a>
+        {[['overzicht','Overzicht'],['gegevens','Schoolgegevens'],['account','Account en koppelingen'],['activiteit','Gebeurtenissen']].map(([key,label])=><a key={key} href={`#${key}`} onClick={event=>{if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();setSection(key);if(window.location.hash!==`#${key}`)window.history.pushState(null,'',`#${key}`);}} aria-current={section===key?'page':undefined}>{label}</a>)}
       </nav>
 
       {licentie?.is_proef && (
@@ -187,10 +194,12 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
         </div>
       )}
 
-      <div className={styles.grid}>
-        <section className={styles.card} id="overzicht">
+      {section === 'overzicht' && <div className={styles.metrics} aria-label="Huidige schoolgegevens">{[['leerlingen','Leerlingen'],['lessen','Lesrecords'],['pakketten','Pakketten'],['facturen','Factuurrecords']].map(([key,label])=><article key={key}><span>{label}</span><strong>{detail.aantallen?.[key]?.toLocaleString('nl-NL') ?? '—'}</strong><small>Huidige stand · geen periodemeting</small></article>)}</div>}
+      <div className={styles.grid} style={section !== 'overzicht' ? {gridTemplateColumns:'minmax(0,1fr)'} : undefined}>
+        <section className={styles.card} id="overzicht" hidden={section !== 'overzicht'}>
           <div className={styles.cardHeading}><h2 className={styles.sectionTitle}>Aan de slag</h2><span>{onboarding.filter(stap => stap.gereed).length} van {onboarding.length} stappen</span></div>
-          <ol style={s.stappen}>
+          <p className={styles.voetnoot}>{gestopt ? `Volgende stap: ${gestopt.label}` : 'Alle huidige instelstappen zijn voltooid.'}</p>
+          <details><summary className={styles.expandSteps}>Alle instelstappen bekijken</summary><ol style={s.stappen}>
             {onboarding.map((stap) => (
               <li key={stap.sleutel} className={styles.stap}>
                 <span style={stap.gereed ? s.bolOk : (stap.blokkerend ? s.bolBlok : s.bolLeeg)} />
@@ -200,10 +209,10 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
                 </span>
               </li>
             ))}
-          </ol>
+          </ol></details>
         </section>
 
-        <section className={styles.card}>
+        <section className={styles.card} hidden={section !== 'overzicht'}>
           <h2 className={styles.sectionTitle}>Abonnement</h2>
           <p className={styles.voetnoot}>
             Betaald loopt via Stripe; de proefperiode wordt op dit moment nog
@@ -235,7 +244,7 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
           </dl>
         </section>
 
-        <section className={styles.card} id="gegevens">
+        <section className={styles.card} id="gegevens" hidden={section !== 'gegevens'}>
           <div className={styles.cardHeading}><h2 className={styles.sectionTitle}>Schoolgegevens</h2><Link href={`/support/${id}/bewerken`}>Bewerken ↗</Link></div>
           <dl className={styles.lijst}>
             <Rij label="E-mail" waarde={school.email} />
@@ -258,7 +267,7 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
           </dl>
         </section>
 
-        <section className={styles.card} id="account">
+        <section className={styles.card} id="account" hidden={section !== 'account'}>
           <h2 className={styles.sectionTitle}>Instructeurs</h2>
           <p className={styles.voetnoot}>
             Namen en e-mailadressen horen bij niveau 1 en staan hier bewust niet.
@@ -310,7 +319,7 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
         </section>
       </div>
 
-      <section className={styles.activity} id="activiteit">
+      <section className={styles.activity} id="activiteit" hidden={section !== 'activiteit'}>
         <h2 className={styles.sectionTitle}>Gebeurtenissen</h2>
         <p className={styles.voetnoot}>
           Facturatie, webhooks, CBR en SnelStart. Van de CBR-synchronisatie
