@@ -81,3 +81,82 @@ test('P9: vaste Mollie-omschrijvingen (checkout, webhook én reconcile delen dez
   assert.equal(planDescription('basic'), 'Ribba Basic – Maandabonnement');
   assert.equal(planDescription('premium'), 'Ribba Premium – Maandabonnement');
 });
+
+// ── Jaarabonnement (J1) en website-service (J5) ─────────────────────────────
+
+const {
+  getPlanIntervalPricing,
+  parseBillingInterval,
+  perIntervalTekst,
+  intervalEenheid,
+  stripeIntervalFor,
+  billingIntervalFromStripe,
+  planExtraFeatures,
+  WEBSITE_SERVICE_TEKST,
+  WEBSITE_SERVICE_TEKST_STATISCH,
+} = await import('../lib/plan-pricing.ts');
+
+test('J1: jaarprijs = 12× maandprijs, geen korting — Basic €300, Premium €540 excl. btw', () => {
+  const b = getPlanIntervalPricing('basic', 'jaar');
+  assert.equal(b.netCents, 30000);
+  assert.equal(b.vatCents, 6300);
+  assert.equal(b.grossCents, 36300);
+  const p = getPlanIntervalPricing('premium', 'jaar');
+  assert.equal(p.netCents, 54000);
+  assert.equal(p.vatCents, 11340);
+  assert.equal(p.grossCents, 65340);
+  for (const plan of ['basic', 'premium']) {
+    assert.equal(getPlanIntervalPricing(plan, 'jaar').netCents, getPlanPricing(plan).netMonthlyCents * 12);
+    // Maand via de nieuwe helper = de bestaande maandprijs.
+    assert.equal(getPlanIntervalPricing(plan, 'maand').grossCents, getPlanPricing(plan).grossMonthlyCents);
+  }
+});
+
+test('J1: fail-closed bij onbekend plan of onbekende periode', () => {
+  assert.throws(() => getPlanIntervalPricing('gold', 'jaar'), UnknownPlanError);
+  assert.throws(() => getPlanIntervalPricing('basic', 'kwartaal'));
+});
+
+test('interval-grens: afwezig → maand; maand/jaar exact; de rest → null', () => {
+  for (const leeg of [undefined, null, '']) assert.equal(parseBillingInterval(leeg), 'maand');
+  assert.equal(parseBillingInterval('maand'), 'maand');
+  assert.equal(parseBillingInterval('jaar'), 'jaar');
+  for (const fout of ['Jaar', 'year', 'month', 'kwartaal', 12, {}]) assert.equal(parseBillingInterval(fout), null);
+});
+
+test('interval-teksten en Stripe-vertaling', () => {
+  assert.equal(perIntervalTekst('jaar'), 'per jaar');
+  assert.equal(perIntervalTekst('maand'), 'per maand');
+  assert.equal(intervalEenheid('jaar'), 'jaar');
+  assert.equal(stripeIntervalFor('jaar'), 'year');
+  assert.equal(stripeIntervalFor('maand'), 'month');
+  assert.equal(billingIntervalFromStripe('year'), 'jaar');
+  assert.equal(billingIntervalFromStripe('month'), 'maand');
+  assert.equal(billingIntervalFromStripe('week'), null);
+});
+
+test('J5: Basic krijgt de website-service nooit, in geen enkele weergave', () => {
+  for (const i of ['maand', 'jaar', 'statisch']) assert.deepEqual(planExtraFeatures('basic', i), []);
+});
+
+test('J5: Premium alleen bij jaarlijks; statisch altijd met het voorvoegsel "Bij jaarlijks betalen:"', () => {
+  assert.deepEqual(planExtraFeatures('premium', 'maand'), []);
+  assert.deepEqual(planExtraFeatures('premium', 'jaar'), [WEBSITE_SERVICE_TEKST]);
+  assert.deepEqual(planExtraFeatures('premium', 'statisch'), [WEBSITE_SERVICE_TEKST_STATISCH]);
+  assert.match(WEBSITE_SERVICE_TEKST_STATISCH, /^Bij jaarlijks betalen: /);
+  assert.match(WEBSITE_SERVICE_TEKST, /eigen website/);
+});
+
+test('J5: de pagina\'s gebruiken de gedeelde bron, geen eigen zin', async () => {
+  const { readFileSync } = await import('node:fs');
+  const lees = (pad) => readFileSync(new URL(pad, import.meta.url), 'utf8');
+  const pro = lees('../app/(site)/pro/page.tsx');
+  const upgrade = lees('../app/(site)/upgrade/page.tsx');
+  const form = lees('../components/SchoolRegistrationForm.tsx');
+  assert.match(pro, /planExtraFeatures\('premium', 'statisch'\)/);
+  assert.match(upgrade, /planExtraFeatures\('premium', getoondePeriode\)/);
+  assert.match(form, /planExtraFeatures\('premium', aanbod\.interval\)/);
+  for (const src of [pro, upgrade, form]) {
+    assert.doesNotMatch(src, /verzorgen je eigen website/, 'zin hoort alleen in plan-pricing');
+  }
+});

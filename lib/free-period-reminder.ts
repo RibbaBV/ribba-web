@@ -28,7 +28,13 @@
 //
 // Pure module: geen I/O, geen env. De route doet het lezen en versturen.
 
-import { isPaidPlan, type PaidPlan } from './plan-pricing';
+import {
+  DEFAULT_BILLING_INTERVAL,
+  billingIntervalFromStripe,
+  isPaidPlan,
+  type BillingInterval,
+  type PaidPlan,
+} from './plan-pricing';
 
 /** Zelfde momenten als de bestaande trial-reminder. */
 export const REMINDER_DAYS = [7, 1] as const;
@@ -40,6 +46,13 @@ export interface SubscriptionRow {
   plan: string | null;
   current_period_end: string | null;
   cancel_at: string | null;
+  /**
+   * Factuurperiode van de Price die het plan draagt. Afwezig = maandelijks
+   * (zo was het vóór de jaarvariant). `null` = Stripe gaf een periode die
+   * Ribba niet verkoopt (week, dag): dan mailen we niet, want de zin
+   * "wordt maandelijks/jaarlijks geïncasseerd" zou liegen.
+   */
+  interval?: BillingInterval | null;
 }
 
 /** Het deel van een Stripe-subscription dat deze module leest. Geen SDK-type: pure module. */
@@ -48,7 +61,12 @@ export interface StripeSubscriptionLike {
   trial_end?: number | null;
   cancel_at?: number | null;
   items?: {
-    data?: Array<{ price?: { metadata?: Record<string, string> | null } | null } | null> | null;
+    data?: Array<{
+      price?: {
+        metadata?: Record<string, string> | null;
+        recurring?: { interval?: string | null } | null;
+      } | null;
+    } | null> | null;
   } | null;
 }
 
@@ -68,21 +86,34 @@ export function subscriptionRowFromStripe(
   schoolId: string,
   sub: StripeSubscriptionLike,
 ): SubscriptionRow {
-  const plannen = (sub.items?.data ?? [])
-    .map((item) => item?.price?.metadata?.plan)
-    .filter((plan): plan is string => typeof plan === 'string' && plan !== '');
+  const planItems = (sub.items?.data ?? [])
+    .filter((item) => {
+      const plan = item?.price?.metadata?.plan;
+      return typeof plan === 'string' && plan !== '';
+    });
+  const planItem = planItems.length === 1 ? planItems[0] : null;
+  // De periode komt van dezelfde Price als het plan. Geen `recurring` →
+  // maandelijks (de enige vorm vóór de jaarvariant); een onbekende periode
+  // → null.
+  const ruweInterval = planItem?.price?.recurring?.interval;
+  const interval = ruweInterval === undefined || ruweInterval === null
+    ? DEFAULT_BILLING_INTERVAL
+    : billingIntervalFromStripe(ruweInterval);
   return {
     school_id: schoolId,
     stripe_status: sub.status ?? null,
-    plan: plannen.length === 1 ? plannen[0] : null,
+    plan: planItem ? planItem.price!.metadata!.plan : null,
     current_period_end: unixToIso(sub.trial_end),
     cancel_at: unixToIso(sub.cancel_at),
+    interval,
   };
 }
 
 export interface FreePeriodReminder {
   schoolId: string;
   plan: PaidPlan;
+  /** Maandelijks of jaarlijks — bepaalt de periodezin en de tarieven in de mail. */
+  interval: BillingInterval;
   daysLeft: ReminderDays;
   /** ISO-tijdstip waarop de gratis periode eindigt. */
   endsAt: string;
@@ -91,6 +122,7 @@ export interface FreePeriodReminder {
 export type SkipReason =
   | 'cancellation_scheduled'
   | 'unknown_plan'
+  | 'unknown_interval'
   | 'no_period_end'
   | 'duplicate_subscription'
   /** Gezet door de route, niet door de selectie: deze mail ging al de deur uit. */
@@ -151,6 +183,10 @@ export function selectFreePeriodReminders(
       skipped.push({ schoolId: row.school_id, reason: 'unknown_plan' });
       continue;
     }
+    if (row.interval === null) {
+      skipped.push({ schoolId: row.school_id, reason: 'unknown_interval' });
+      continue;
+    }
     if (gezien.has(row.school_id)) {
       skipped.push({ schoolId: row.school_id, reason: 'duplicate_subscription' });
       continue;
@@ -159,6 +195,7 @@ export function selectFreePeriodReminders(
     reminders.push({
       schoolId: row.school_id,
       plan: row.plan,
+      interval: row.interval ?? DEFAULT_BILLING_INTERVAL,
       daysLeft: target.days,
       endsAt: eind.toISOString(),
     });
@@ -212,9 +249,12 @@ export interface ReminderCopy {
  */
 export function buildReminderCopy(input: {
   plan: PaidPlan;
+  /** Afwezig = maandelijks. */
+  interval?: BillingInterval;
   daysLeft: ReminderDays;
   endsAt: string;
 }): ReminderCopy {
+  const ritme = (input.interval ?? DEFAULT_BILLING_INTERVAL) === 'jaar' ? 'jaarlijks' : 'maandelijks';
   const plan = PLAN_LABEL[input.plan];
   const datum = formatEndDate(input.endsAt);
   const morgen = input.daysLeft <= 1;
@@ -226,7 +266,7 @@ export function buildReminderCopy(input: {
     title: `Je gratis periode loopt ${wanneer} af`,
     intro:
       `Je gratis periode bij Ribba loopt af op ${datum}. Je hoeft niets te doen: `
-      + `je abonnement loopt daarna door op ${plan} en wordt maandelijks automatisch geïncasseerd.`,
+      + `je abonnement loopt daarna door op ${plan} en wordt ${ritme} automatisch geïncasseerd.`,
     switchToBasic: input.plan === 'premium'
       ? (morgen
         ? 'Liever Basic? Kies vandaag nog "Na deze periode naar Basic" op de pagina achter de knop hieronder.'

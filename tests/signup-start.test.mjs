@@ -117,6 +117,11 @@ function reset() {
       recurring: { interval: 'month' }, unit_amount: 4500, tax_behavior: 'exclusive',
       metadata: { plan: 'premium', trial_interval: '1 month' },
     },
+    premium_jaar: {
+      id: 'price_premium_jaar', active: true, currency: 'eur',
+      recurring: { interval: 'year' }, unit_amount: 54000, tax_behavior: 'exclusive',
+      metadata: { plan: 'premium', trial_interval: '1 month' },
+    },
   };
 }
 
@@ -472,4 +477,51 @@ test('de Checkout krijgt GEEN payment_method_types opgedrongen', async () => {
   reset();
   await POST(verzoek({ promo_code: 'STARTGRATIS' }));
   assert.equal('payment_method_types' in sessies[0], false, 'ook met actiecode');
+});
+
+// ── Jaarabonnement (J2/J3) ──────────────────────────────────────────────────
+
+test('jaar: Checkout krijgt de jaarprijs, mét de normale gratis eerste maand', async () => {
+  reset();
+  const res = await POST(verzoek({ interval: 'jaar' }));
+  assert.equal(res.status, 200);
+  assert.equal(sessies.length, 1);
+  assert.deepEqual(sessies[0].line_items, [{ price: 'price_premium_jaar', quantity: 1 }]);
+  assert.equal(maandenTot(sessies[0].subscription_data.trial_end), 1);
+  assert.equal(sessies[0].discounts, undefined);
+});
+
+test('zonder interval: maandprijs (achterwaarts compatibel)', async () => {
+  reset();
+  const res = await POST(verzoek());
+  assert.equal(res.status, 200);
+  assert.deepEqual(sessies[0].line_items, [{ price: 'price_premium', quantity: 1 }]);
+});
+
+test('een onbekend interval → 400, geen pending rij en geen Checkout', async () => {
+  reset();
+  const res = await POST(verzoek({ interval: 'kwartaal' }));
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error, 'Kies maandelijks of jaarlijks betalen.');
+  assert.equal(ingevoegd.length, 0);
+  assert.equal(sessies.length, 0);
+});
+
+test('J3: jaar + geaccepteerde actiecode → 400 met uitleg, geen pending rij en geen Checkout', async () => {
+  reset();
+  const res = await POST(verzoek({ interval: 'jaar', promo_code: 'STARTGRATIS' }));
+  assert.equal(res.status, 400);
+  assert.equal(res.body.reason, 'jaar_met_korting');
+  assert.match(res.body.error, /actiecode is alleen te gebruiken bij maandelijks/);
+  assert.equal(ingevoegd.length, 0);
+  assert.equal(sessies.length, 0);
+});
+
+test('jaar zonder jaarprijs in Stripe → 503 met de uitleg dat maandelijks wél kan', async () => {
+  reset();
+  delete prices.premium_jaar;
+  const res = await POST(verzoek({ interval: 'jaar' }));
+  assert.equal(res.status, 503);
+  assert.match(res.body.error, /Jaarlijks betalen is nu niet beschikbaar/);
+  assert.equal(sessies.length, 0);
 });

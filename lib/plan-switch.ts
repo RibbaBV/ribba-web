@@ -8,6 +8,13 @@
 // de lopende periode; tot dan houdt de school Premium en kan hij terug.
 // Ontwerp: ribbaPro docs/design/planwissel-ontwerp-2026-10-01.md §5.4.
 
+import {
+  DEFAULT_BILLING_INTERVAL,
+  parseBillingInterval,
+  perIntervalTekst,
+  type BillingInterval,
+} from './plan-pricing';
+
 export type PlanSwitchAction = 'schedule' | 'undo' | 'status';
 
 /** Wat Stripe zegt: staat er een wissel gepland, en per wanneer? */
@@ -171,6 +178,12 @@ export type UpgradePreview = {
   /** Null als Stripe de btw niet meegaf; dan tonen we alleen excl. btw. */
   differenceInclCents: number | null;
   nextInvoiceAt: string;
+  /**
+   * De factuurperiode van het abonnement (de doelprijs heeft altijd dezelfde
+   * periode als de huidige). Een oudere server stuurt hem niet mee; dan is
+   * het maandelijks — jaarlijks bestond toen nog niet.
+   */
+  interval: BillingInterval;
 };
 
 export type UpgradePreviewResult =
@@ -236,6 +249,10 @@ export async function previewUpgrade(opts: {
     || !isCents(d.difference_excl_cents)
     || !(d.difference_incl_cents === null || isCents(d.difference_incl_cents))
     || typeof d.next_invoice_at !== 'string' || Number.isNaN(Date.parse(d.next_invoice_at))
+    // Afwezig = maandelijks (oudere server). Een ONBEKENDE waarde is iets
+    // anders: dan weten we niet of we "per maand" of "per jaar" moeten zeggen,
+    // en vragen we geen toestemming op een zin die kan liegen.
+    || parseBillingInterval(d.interval) === null
   ) {
     return { ok: false, error: r.status === 200 ? GENERIC_SWITCH_ERROR : serverError(d), kind: 'definitive' };
   }
@@ -247,6 +264,7 @@ export async function previewUpgrade(opts: {
       differenceExclCents: d.difference_excl_cents,
       differenceInclCents: d.difference_incl_cents as number | null,
       nextInvoiceAt: d.next_invoice_at,
+      interval: parseBillingInterval(d.interval) ?? DEFAULT_BILLING_INTERVAL,
     },
   };
 }
@@ -282,17 +300,22 @@ export async function confirmUpgrade(opts: {
 /**
  * De tekst in de bevestiging. Het bedrag komt uit de voorvertoning van
  * Stripe; Ribba rekent niets zelf.
+ *
+ * `premiumPriceExcl` is de Premium-prijs voor de periode van DIT abonnement
+ * (`p.interval`): de maandprijs bij maandelijks, de jaarprijs bij jaarlijks.
+ * De periodezin volgt `p.interval`.
  */
-export function upgradeConfirmText(p: UpgradePreview, premiumMonthlyExcl: string, formatCents: (c: number) => string): string {
+export function upgradeConfirmText(p: UpgradePreview, premiumPriceExcl: string, formatCents: (c: number) => string): string {
   const datum = formatSwitchDate(p.nextInvoiceAt);
+  const per = perIntervalTekst(p.interval ?? DEFAULT_BILLING_INTERVAL);
   if (p.inFreePeriod) {
-    return `Je gaat direct over op Premium. In je gratis periode betaal je niets extra. Vanaf ${datum} betaal je ${premiumMonthlyExcl} per maand excl. btw.`;
+    return `Je gaat direct over op Premium. In je gratis periode betaal je niets extra. Vanaf ${datum} betaal je ${premiumPriceExcl} ${per} excl. btw.`;
   }
   if (p.differenceExclCents <= 0) {
-    return `Je gaat direct over op Premium. Voor de rest van deze periode komt er niets bij. Vanaf ${datum} betaal je ${premiumMonthlyExcl} per maand excl. btw.`;
+    return `Je gaat direct over op Premium. Voor de rest van deze periode komt er niets bij. Vanaf ${datum} betaal je ${premiumPriceExcl} ${per} excl. btw.`;
   }
   const bedrag = p.differenceInclCents !== null
     ? `${formatCents(p.differenceExclCents)} excl. btw (${formatCents(p.differenceInclCents)} incl. btw)`
     : `${formatCents(p.differenceExclCents)} excl. btw`;
-  return `Je gaat direct over op Premium. Voor de rest van deze periode komt er ${bedrag} bij je volgende incasso op ${datum}. Daarna betaal je ${premiumMonthlyExcl} per maand excl. btw.`;
+  return `Je gaat direct over op Premium. Voor de rest van deze periode komt er ${bedrag} bij je volgende incasso op ${datum}. Daarna betaal je ${premiumPriceExcl} ${per} excl. btw.`;
 }

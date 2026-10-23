@@ -28,7 +28,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { INSCHRIJFPLAN } from '@/lib/signup-plan';
-import { resolveSignupOffer } from '@/lib/signup-offer';
+import { JAAR_MET_KORTING_MELDING, resolveSignupOffer } from '@/lib/signup-offer';
+import { parseBillingInterval } from '@/lib/plan-pricing';
 import { maakOfferDeps } from '@/lib/signup-offer-deps';
 
 export const dynamic = 'force-dynamic';
@@ -42,7 +43,23 @@ export async function GET(request: NextRequest) {
   }
 
   const code = request.nextUrl.searchParams.get('code');
-  const aanbod = await resolveSignupOffer(deps, INSCHRIJFPLAN, { promoCode: code });
+  // Maandelijks of jaarlijks; zonder parameter maandelijks (oude clients).
+  const interval = parseBillingInterval(request.nextUrl.searchParams.get('interval'));
+  if (!interval) {
+    return NextResponse.json(
+      { beschikbaar: false, reden: 'interval_invalid', error: 'Kies maandelijks of jaarlijks betalen.' },
+      { status: 400 },
+    );
+  }
+  const aanbod = await resolveSignupOffer(deps, INSCHRIJFPLAN, { promoCode: code, interval });
+
+  if (!aanbod.ok && aanbod.reason === 'jaar_met_korting') {
+    // J3: geen configuratiefout maar een combinatie die we niet aanbieden.
+    return NextResponse.json(
+      { beschikbaar: false, reden: aanbod.reason, plan: INSCHRIJFPLAN, error: JAAR_MET_KORTING_MELDING },
+      { status: 400 },
+    );
+  }
 
   if (!aanbod.ok) {
     return NextResponse.json(
@@ -55,6 +72,7 @@ export async function GET(request: NextRequest) {
     {
       beschikbaar: true,
       plan: aanbod.plan,
+      interval: aanbod.interval,
       bedragen: aanbod.bedragen,
       /** 0 tijdens een gratis periode. Dit hoort visueel het prominentst. */
       vandaagVerschuldigdCenten: aanbod.vandaagVerschuldigdCenten,

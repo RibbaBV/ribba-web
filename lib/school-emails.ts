@@ -3,7 +3,13 @@
 // via Resend. Zelfde huisstijl als lib/admin-notifications.ts.
 
 import { logBillingEvent } from './billing-events';
-import { getPlanPricing, formatCentsForDisplay, type PlanPricing } from './plan-pricing';
+import {
+  getPlanPricing,
+  getPlanIntervalPricing,
+  formatCentsForDisplay,
+  intervalEenheid,
+  type PlanPricing,
+} from './plan-pricing';
 import { DOMAIN } from './domains';
 import { buildReminderCopy, reminderEmailType, type FreePeriodReminder } from './free-period-reminder';
 
@@ -298,12 +304,15 @@ export async function sendFreePeriodEndingMail(
 ): Promise<void> {
   const copy = buildReminderCopy(reminder);
 
+  // Tarieven in de periode van DIT abonnement: een jaarabonnement ziet
+  // jaarbedragen, ook voor Basic als alternatief (een wissel blijft binnen
+  // dezelfde periode).
   const tariefRegel = (plan: 'basic' | 'premium', naam: string, uitleg: string, eerste: boolean) => {
-    const prijs = getPlanPricing(plan);
+    const prijs = getPlanIntervalPricing(plan, reminder.interval);
     return `
         <tr>
           <td style="padding:14px 16px;font-size:14px;color:#0F172A${eerste ? '' : ';border-top:1px solid #E2E8F0'}">
-            <strong>${naam} — ${formatCentsForDisplay(prijs.netMonthlyCents)} / maand excl. btw</strong> <span style="font-size:13px;color:#64748B">(${formatCentsForDisplay(prijs.grossMonthlyCents)} incl. btw)</span><br>
+            <strong>${naam} — ${formatCentsForDisplay(prijs.netCents)} / ${intervalEenheid(reminder.interval)} excl. btw</strong> <span style="font-size:13px;color:#64748B">(${formatCentsForDisplay(prijs.grossCents)} incl. btw)</span><br>
             <span style="font-size:13px;color:#64748B">${uitleg}</span>
           </td>
         </tr>`;

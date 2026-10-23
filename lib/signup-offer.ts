@@ -16,7 +16,8 @@
 //
 // ── DRIE BRONNEN, STRIKT GESCHEIDEN ─────────────────────────────────────────
 //
-//   ROUTING      welke Price → de lookup key `<plan>_standaard`
+//   ROUTING      welke Price → de lookup key `<plan>_standaard` (maandelijks)
+//                of `<plan>_jaar` (jaarlijks)
 //   ENTITLEMENT  welke rechten → UITSLUITEND `plan`-metadata op de Price
 //   GRATIS       hoe lang / hoeveel → `trial_interval` op de Price voor het
 //                standaardaanbod, of een Coupon voor een campagne
@@ -69,7 +70,12 @@
 
 import type Stripe from 'stripe';
 import { PLAN_METADATA_KEY, isSignupPlan, type SignupPlan } from '@/lib/signup-plan';
-import { VAT_RATE_PERCENT } from '@/lib/plan-pricing';
+import {
+  DEFAULT_BILLING_INTERVAL,
+  VAT_RATE_PERCENT,
+  stripeIntervalFor,
+  type BillingInterval,
+} from '@/lib/plan-pricing';
 import {
   MINIMALE_TRIAL_SECONDEN,
   parseTrialInterval,
@@ -86,6 +92,7 @@ export type OfferFailure =
   | 'price_zoekfout'            // Stripe weigerde de vraag (modus, rechten, storing)
   | 'price_inactive'            // gearchiveerde Price
   | 'price_not_recurring'       // eenmalig bedrag; geen abonnement
+  | 'price_interval_mismatch'   // maandprijs onder een jaarnaam, of andersom
   | 'price_without_amount'      // bv. tiered pricing: geen bedrag om te tonen
   | 'price_zero_amount'         // nulprijs-poort
   | 'tax_behavior_unspecified'  // Checkout weigert dit bij automatische btw
@@ -94,7 +101,15 @@ export type OfferFailure =
   | 'plan_metadata_mismatch'    // G5
   | 'trial_interval_invalid'    // configuratiefout in de standaardduur
   | 'trial_te_kort'             // < 48 uur; Stripe zou weigeren
-  | 'coupon_onbruikbaar';       // code bestaat, coupon deugt niet
+  | 'coupon_onbruikbaar'        // code bestaat, coupon deugt niet
+  | 'jaar_met_korting';         // J3: een actiecode kan niet met jaarlijks
+
+/**
+ * J3 — de zin die de bezoeker ziet als hij jaarlijks combineert met een
+ * actiecode. Eén plek, zodat beide routes hetzelfde zeggen.
+ */
+export const JAAR_MET_KORTING_MELDING =
+  'Een actiecode is alleen te gebruiken bij maandelijks betalen. Kies maandelijks, of laat de code leeg om jaarlijks te betalen.';
 
 /** Wat de klant vandaag en straks betaalt. Alles in hele centen. */
 export type Bedragen = {
@@ -142,6 +157,8 @@ export type KortingWeergave = {
 
 export type Offer = {
   plan: SignupPlan;
+  /** De gekozen factuurperiode; de Price is daartegen gecontroleerd. */
+  interval: BillingInterval;
   priceId: string;
   bedragen: Bedragen;
   /**
@@ -197,6 +214,8 @@ export type OfferDeps = {
 
 export type OfferOpties = {
   promoCode?: string | null;
+  /** Maandelijks of jaarlijks. Ontbreekt hij, dan maandelijks. */
+  interval?: BillingInterval;
   /** Injecteerbaar zodat de kalenderrekensom testbaar is. */
   nu?: Date;
 };
@@ -207,9 +226,16 @@ export type OfferOpties = {
  * Afgeleid van de plannaam, niet uit een lijst of een variabele — dan hoeft er
  * bij een nieuw pakket niets aan deze kant bij. Géén entitlementbetekenis: dat
  * blijft `plan`-metadata op de Price, bewaakt door G5.
+ *
+ * Maandelijks blijft `<plan>_standaard` (zo heet hij al in Stripe en dat
+ * verandert niet); jaarlijks is `<plan>_jaar`. Dezelfde producten, een
+ * andere Price.
  */
-export function lookupKeyForPlan(plan: SignupPlan): string {
-  return `${plan}_standaard`;
+export function lookupKeyForPlan(
+  plan: SignupPlan,
+  interval: BillingInterval = DEFAULT_BILLING_INTERVAL,
+): string {
+  return interval === 'jaar' ? `${plan}_jaar` : `${plan}_standaard`;
 }
 
 /** De standaardduur zoals die op de Price staat. */
@@ -325,7 +351,8 @@ export async function resolveSignupOffer(
   opties: OfferOpties = {},
 ): Promise<OfferResult> {
   const nu = opties.nu ?? new Date();
-  const lookupKey = lookupKeyForPlan(plan);
+  const interval: BillingInterval = opties.interval ?? DEFAULT_BILLING_INTERVAL;
+  const lookupKey = lookupKeyForPlan(plan, interval);
 
   // `active: true` staat er bewust bij. Een lookup key is uniek onder ACTIEVE
   // prijzen; wordt een prijs gearchiveerd, dan komt de naam vrij voor zijn
@@ -359,6 +386,19 @@ export async function resolveSignupOffer(
   const priceId = price.id;
   if (price.active === false) return { ok: false, reason: 'price_inactive', detail: priceId };
   if (!price.recurring) return { ok: false, reason: 'price_not_recurring', detail: priceId };
+
+  // De naam is routing; het ritme moet ook kloppen. Hangt `premium_jaar` aan
+  // een maandprijs (of andersom), dan zou het scherm "per jaar" zeggen terwijl
+  // Stripe elke maand incasseert. Dat strandt hier, vóór het mandaat.
+  const verwacht = stripeIntervalFor(interval);
+  const aantal = price.recurring.interval_count ?? 1;
+  if (price.recurring.interval !== verwacht || aantal !== 1) {
+    return {
+      ok: false,
+      reason: 'price_interval_mismatch',
+      detail: `${lookupKey}: verwacht=${verwacht} price=${priceId} interval=${price.recurring.interval}×${aantal}`,
+    };
+  }
 
   // ── G5 ──────────────────────────────────────────────────────────────────
   const rawPlan = price.metadata?.[PLAN_METADATA_KEY];
@@ -409,6 +449,14 @@ export async function resolveSignupOffer(
     }
   }
 
+  // ── J3: een actiecode stapelt niet op jaarlijks ─────────────────────────
+  // Alleen een code die Stripe daadwerkelijk accepteert telt. Een verkeerd
+  // getypte code blokkeert jaarlijks niet — die valt gewoon weg, zoals bij
+  // maandelijks.
+  if (korting && interval === 'jaar') {
+    return { ok: false, reason: 'jaar_met_korting', detail: korting.code };
+  }
+
   // ── Standaardaanbod: de trial uit de Price ──────────────────────────────
   // Alleen wanneer geen campagne het overneemt. Een ongeldige standaardduur is
   // ook dán een configuratiefout: hij wordt straks weer gebruikt.
@@ -451,6 +499,7 @@ export async function resolveSignupOffer(
   return {
     ok: true,
     plan: genormaliseerd,
+    interval,
     priceId,
     bedragen,
     vandaagVerschuldigdCenten: rest.bruto,

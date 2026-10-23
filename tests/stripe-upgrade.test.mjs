@@ -168,13 +168,43 @@ for (const plan of ['basic', 'premium']) {
     assert.equal(calls.length, 1);
     assert.equal(calls[0].url, 'https://project.supabase.co/functions/v1/stripe-create-checkout');
     assert.equal(calls[0].init.headers.Authorization, 'Bearer jwt-123');
+    // Zonder keuze altijd expliciet maandelijks.
     assert.deepEqual(JSON.parse(calls[0].init.body), {
       school_id: 'school-uuid',
       plan,
       attempt_id: 'attempt-uuid',
+      interval: 'maand',
     });
   });
+
+  test(`${plan} jaarlijks stuurt interval 'jaar' mee`, async () => {
+    const { calls, impl } = fakeFetch(200, { checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_test_y' });
+    await startStripeCheckout({
+      supabaseUrl: 'https://project.supabase.co',
+      accessToken: 'jwt-123',
+      schoolId: 'school-uuid',
+      plan,
+      attemptId: 'attempt-uuid',
+      interval: 'jaar',
+      fetchImpl: impl,
+    });
+    assert.equal(JSON.parse(calls[0].init.body).interval, 'jaar');
+  });
 }
+
+test('maand en jaar zijn aparte pogingen met een eigen attempt_id', () => {
+  let n = 0;
+  const c = createCheckoutController(() => `uuid-${++n}`);
+  const maand = c.begin('basic');
+  c.fail('basic', 'network');
+  const jaar = c.begin('basic', 'jaar');
+  assert.notEqual(maand, jaar);
+  c.fail('basic', 'network', 'jaar');
+  // Terug naar maand hervat dezelfde idempotente maandpoging.
+  assert.equal(c.begin('basic', 'maand'), maand);
+  c.fail('basic', 'definitive', 'maand');
+  assert.equal(c.begin('basic', 'jaar'), jaar, 'een definitieve maandfout raakt de jaarpoging niet');
+});
 
 test('checkoutFunctionUrl verdraagt een trailing slash', () => {
   assert.equal(
