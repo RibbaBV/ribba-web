@@ -116,6 +116,8 @@ function UpgradeContent() {
   // via Checkout (proefperiode of geen plan). Wisselen tussen maand en jaar
   // voor een betalende school bestaat niet (buiten scope).
   const [periode, setPeriode] = useState<BillingInterval>('maand');
+  // Betaalperiode van een lopend abonnement (uit /api/current-plan); null = onbekend.
+  const [huidigInterval, setHuidigInterval] = useState<BillingInterval | null>(null);
 
   // Auth + resolve school_id (from URL or via Supabase session)
   useEffect(() => {
@@ -179,6 +181,7 @@ function UpgradeContent() {
         // valt (geen plan, geen beheerrechten).
         const body = (planRes.ok ? await planRes.json().catch(() => null) : null) ?? {};
         setCurrentPlan(body.plan ?? null);
+        setHuidigInterval(body.interval === 'jaar' || body.interval === 'maand' ? body.interval : null);
         setIsTrial(body.isTrial || false);
         setTrialEndsAt(body.trialEndsAt || null);
         setCancelledAt(body.cancelledAt || null);
@@ -483,10 +486,15 @@ function UpgradeContent() {
   };
 
   // De keuze maand/jaar verschijnt alleen waar een checkout een nieuw
-  // abonnement start. Elders (een lopend abonnement) kennen we de periode van
-  // dat abonnement hier niet en tonen we de maandprijs, zoals voorheen.
+  // abonnement start. Bij een lopend abonnement tonen we de periode van dát
+  // abonnement (uit /api/current-plan). Is die onbekend, dan de maandprijs als
+  // kop maar géén incassobedrag: liever niets dan een verkeerde periode.
   const periodeKiesbaar = canManageSubscription && (isTrial || !currentPlan);
-  const getoondePeriode: BillingInterval = periodeKiesbaar ? periode : 'maand';
+  const lopendAbonnement = Boolean(currentPlan) && !isTrial;
+  const getoondePeriode: BillingInterval = periodeKiesbaar
+    ? periode
+    : (lopendAbonnement ? (huidigInterval ?? 'maand') : 'maand');
+  const incassoBekend = periodeKiesbaar || !lopendAbonnement || huidigInterval !== null;
   const basicPrijs = getPlanIntervalPricing('basic', getoondePeriode);
   const premiumPrijs = getPlanIntervalPricing('premium', getoondePeriode);
 
@@ -774,9 +782,11 @@ function UpgradeContent() {
                 <span className="plan-amount">{prijsKop(basicPrijs.netCents)}</span>
                 <span className="plan-period">/{intervalEenheid(getoondePeriode)} excl. btw</span>
               </div>
-              <p style={{ fontSize: 13, color: '#78716C', margin: '4px 0 0' }}>
-                Incasso: {formatCentsForDisplay(basicPrijs.grossCents)} {perIntervalTekst(getoondePeriode)} incl. 21% btw
-              </p>
+              {incassoBekend && (
+                <p style={{ fontSize: 13, color: '#78716C', margin: '4px 0 0' }}>
+                  Incasso: {formatCentsForDisplay(basicPrijs.grossCents)} {perIntervalTekst(getoondePeriode)} incl. 21% btw
+                </p>
+              )}
               <p className="plan-desc">
                 Alles wat je nodig hebt om je rijschool te draaien.
               </p>
@@ -849,9 +859,11 @@ function UpgradeContent() {
                 <span className="plan-amount">{prijsKop(premiumPrijs.netCents)}</span>
                 <span className="plan-period">/{intervalEenheid(getoondePeriode)} excl. btw</span>
               </div>
-              <p style={{ fontSize: 13, color: '#78716C', margin: '4px 0 0' }}>
-                Incasso: {formatCentsForDisplay(premiumPrijs.grossCents)} {perIntervalTekst(getoondePeriode)} incl. 21% btw
-              </p>
+              {incassoBekend && (
+                <p style={{ fontSize: 13, color: '#78716C', margin: '4px 0 0' }}>
+                  Incasso: {formatCentsForDisplay(premiumPrijs.grossCents)} {perIntervalTekst(getoondePeriode)} incl. 21% btw
+                </p>
+              )}
               <p className="plan-desc">
                 Groei je rijschool met meer leerlingen en instructeurs.
               </p>

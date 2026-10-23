@@ -160,3 +160,31 @@ test('J5: de pagina\'s gebruiken de gedeelde bron, geen eigen zin', async () => 
     assert.doesNotMatch(src, /verzorgen je eigen website/, 'zin hoort alleen in plan-pricing');
   }
 });
+
+// ── Review #114: de periode van een lopend abonnement op /upgrade ───────────
+
+test('J-R1: intervalVanStripePrijs leest maand/jaar en weigert meervoudige perioden', async () => {
+  const { intervalVanStripePrijs } = await import('../lib/plan-pricing.ts');
+  assert.equal(intervalVanStripePrijs({ interval: 'year', interval_count: 1 }), 'jaar');
+  assert.equal(intervalVanStripePrijs({ interval: 'month' }), 'maand');
+  assert.equal(intervalVanStripePrijs({ interval: 'month', interval_count: 3 }), null);
+  assert.equal(intervalVanStripePrijs({ interval: 'week', interval_count: 1 }), null);
+  assert.equal(intervalVanStripePrijs(null), null);
+});
+
+test('J-R2: /api/current-plan geeft het interval mee en /upgrade gebruikt het', async () => {
+  const { readFileSync } = await import('node:fs');
+  const route = readFileSync(new URL('../app/api/current-plan/route.ts', import.meta.url), 'utf8');
+  assert.match(route, /intervalVanStripePrijs\(prijs\.recurring\)/);
+  assert.match(route, /\binterval,\n/);
+  const pagina = readFileSync(new URL('../app/(site)/upgrade/page.tsx', import.meta.url), 'utf8');
+  assert.match(pagina, /setHuidigInterval\(body\.interval/);
+  assert.match(pagina, /\{incassoBekend && \(/);
+});
+
+test('J-R3: het aanmeldformulier stuurt het interval van het getoonde aanbod mee', async () => {
+  const { readFileSync } = await import('node:fs');
+  const form = readFileSync(new URL('../components/SchoolRegistrationForm.tsx', import.meta.url), 'utf8');
+  assert.match(form, /interval: codeToegepast \? 'maand' : \(aanbod\?\.interval \?\? 'maand'\)/);
+  assert.doesNotMatch(form, /interval: codeToegepast \? 'maand' : periode,/);
+});

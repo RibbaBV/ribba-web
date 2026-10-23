@@ -383,7 +383,9 @@ export default function SchoolRegistrationForm() {
           ...(promoBeschikbaar && codeToegepast ? { promo_code: codeToegepast } : {}),
           // Maandelijks of jaarlijks. Met een actiecode altijd maandelijks
           // (J3); de server weigert de combinatie ook zelf.
-          interval: codeToegepast ? 'maand' : periode,
+          // Het interval van het getoonde (door de server bevestigde) aanbod,
+          // niet de keuze die nog onderweg kan zijn: getoond = afgerekend.
+          interval: codeToegepast ? 'maand' : (aanbod?.interval ?? 'maand'),
           kvk_number: normalizeBusinessRegister(form.kvk_number),
           btw_number: form.btw_number.trim() ? normalizeVat(form.btw_number) : '',
           // De nieuwe route kent geen wachtwoord; meesturen zou het stil

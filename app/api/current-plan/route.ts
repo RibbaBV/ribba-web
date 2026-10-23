@@ -1,6 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { pickEffectiveLicense } from '@/lib/effective-license';
+import { getStripe } from '@/lib/stripe';
+import { intervalVanStripePrijs } from '@/lib/plan-pricing';
+import type { BillingInterval } from '@/lib/plan-pricing';
+
+/**
+ * Betaalperiode van het lopende Stripe-abonnement (jaarabonnement, J2), voor
+ * de prijzen op /upgrade. Uit de Stripe-prijs zelf, niet uit een vaste lijst
+ * prijs-id's. Lukt het niet, dan null: de pagina toont dan geen incassobedrag.
+ */
+async function huidigInterval(
+  supabase: ReturnType<typeof getSupabase>,
+  schoolId: string,
+): Promise<BillingInterval | null> {
+  try {
+    const { data } = await supabase
+      .from('school_subscriptions')
+      .select('stripe_price_id, updated_at')
+      .eq('school_id', schoolId)
+      .is('ended_at', null)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const priceId = (data as { stripe_price_id?: string | null } | null)?.stripe_price_id;
+    if (!priceId) return null;
+    const prijs = await getStripe().prices.retrieve(priceId);
+    return intervalVanStripePrijs(prijs.recurring);
+  } catch {
+    return null;
+  }
+}
 
 function getSupabase() {
   return createClient(
@@ -102,8 +132,13 @@ export async function GET(req: NextRequest) {
       cancelledAndPeriodEnded ||
       (!isPaidPlan && !data.is_trial); // sentinel 'expired' of andere onbekende waarde
 
+    const loopt = !isExpired && isPaidPlan && !data.is_trial;
+    const interval = loopt ? await huidigInterval(supabase, schoolId) : null;
+
     return NextResponse.json({
       plan: isExpired || !isPaidPlan ? null : data.billing_plan,
+      // Betaalperiode van een lopend abonnement; null = onbekend of n.v.t.
+      interval,
       isTrial: Boolean(data.is_trial && !trialActuallyExpired),
       trialEndsAt: data.trial_ends_at,
       cancelledAt: data.cancelled_at,

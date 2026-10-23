@@ -237,6 +237,17 @@ test('J-F2: een periode die Ribba niet verkoopt → geen mail (unknown_interval)
   assert.deepEqual(skipped, [{ schoolId: 'school-1', reason: 'unknown_interval' }]);
 });
 
+test('J-F3: een prijs die per meerdere perioden factureert → onbekend, geen mail (review #114)', () => {
+  const kwartaal = subscriptionRowFromStripe('school-1', stripeSub({
+    items: { data: [{ price: { metadata: { plan: 'premium' }, recurring: { interval: 'month', interval_count: 3 } } }] },
+  }));
+  assert.equal(kwartaal.interval, null);
+  const gewoon = subscriptionRowFromStripe('s', stripeSub({
+    items: { data: [{ price: { metadata: { plan: 'premium' }, recurring: { interval: 'year', interval_count: 1 } } }] },
+  }));
+  assert.equal(gewoon.interval, 'jaar');
+});
+
 test('J-S1: een jaarabonnement krijgt een herinnering met interval jaar', () => {
   const { reminders } = selectFreePeriodReminders([rij({ interval: 'jaar' })], NU_7D);
   assert.equal(reminders[0].interval, 'jaar');

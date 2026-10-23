@@ -139,6 +139,19 @@ export function billingIntervalFromStripe(value: unknown): BillingInterval | nul
   return null;
 }
 
+/**
+ * Interval van een Stripe-prijs (`price.recurring`). Alleen elke maand of elk
+ * jaar telt; een prijs die per meerdere perioden factureert (interval_count ≠ 1)
+ * of ontbrekende gegevens → null (onbekend).
+ */
+export function intervalVanStripePrijs(
+  recurring: { interval?: string | null; interval_count?: number | null } | null | undefined,
+): BillingInterval | null {
+  if (!recurring) return null;
+  if ((recurring.interval_count ?? 1) !== 1) return null;
+  return billingIntervalFromStripe(recurring.interval);
+}
+
 export interface PlanIntervalPricing {
   plan: PaidPlan;
   interval: BillingInterval;

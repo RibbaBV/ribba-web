@@ -64,7 +64,7 @@ export interface StripeSubscriptionLike {
     data?: Array<{
       price?: {
         metadata?: Record<string, string> | null;
-        recurring?: { interval?: string | null } | null;
+        recurring?: { interval?: string | null; interval_count?: number | null } | null;
       } | null;
     } | null> | null;
   } | null;
@@ -96,7 +96,12 @@ export function subscriptionRowFromStripe(
   // maandelijks (de enige vorm vóór de jaarvariant); een onbekende periode
   // → null.
   const ruweInterval = planItem?.price?.recurring?.interval;
-  const interval = ruweInterval === undefined || ruweInterval === null
+  const intervalAantal = planItem?.price?.recurring?.interval_count;
+  // Een prijs die per meerdere perioden factureert (bv. elke 3 maanden) kennen
+  // we niet: dan geen mail met een verkeerde periode (reden unknown_interval).
+  const interval = intervalAantal !== undefined && intervalAantal !== null && intervalAantal !== 1
+    ? null
+    : ruweInterval === undefined || ruweInterval === null
     ? DEFAULT_BILLING_INTERVAL
     : billingIntervalFromStripe(ruweInterval);
   return {
