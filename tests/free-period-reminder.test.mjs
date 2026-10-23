@@ -45,7 +45,7 @@ test('S1: zelfde momenten als de bestaande herinnering — 7 dagen en 1 dag', ()
 test('S2: 7 dagen vooraf → één herinnering, met plan en einddatum uit de subscription', () => {
   const { reminders, skipped } = selectFreePeriodReminders([rij()], NU_7D);
   assert.deepEqual(reminders, [{
-    schoolId: 'school-1', plan: 'premium', daysLeft: 7, endsAt: '2026-11-01T11:28:45.000Z',
+    schoolId: 'school-1', plan: 'premium', interval: 'maand', daysLeft: 7, endsAt: '2026-11-01T11:28:45.000Z',
   }]);
   assert.deepEqual(skipped, []);
 });
@@ -210,7 +210,58 @@ test('F1: einddatum = trial_end van Stripe, plan = metadata.plan op de Price', (
     plan: 'premium',
     current_period_end: '2026-11-01T11:28:45.000Z',
     cancel_at: null,
+    interval: 'maand',
   });
+});
+
+// ── Jaarabonnement ──────────────────────────────────────────────────────────
+
+test('J-F1: de periode komt van de Price met het plan — year → jaar, month → maand', () => {
+  const jaar = subscriptionRowFromStripe('s', stripeSub({
+    items: { data: [{ price: { metadata: { plan: 'premium' }, recurring: { interval: 'year' } } }] },
+  }));
+  const maand = subscriptionRowFromStripe('s', stripeSub({
+    items: { data: [{ price: { metadata: { plan: 'premium' }, recurring: { interval: 'month' } } }] },
+  }));
+  assert.equal(jaar.interval, 'jaar');
+  assert.equal(maand.interval, 'maand');
+});
+
+test('J-F2: een periode die Ribba niet verkoopt → geen mail (unknown_interval)', () => {
+  const week = subscriptionRowFromStripe('school-1', stripeSub({
+    items: { data: [{ price: { metadata: { plan: 'premium' }, recurring: { interval: 'week' } } }] },
+  }));
+  assert.equal(week.interval, null);
+  const { reminders, skipped } = selectFreePeriodReminders([week], NU_7D);
+  assert.deepEqual(reminders, []);
+  assert.deepEqual(skipped, [{ schoolId: 'school-1', reason: 'unknown_interval' }]);
+});
+
+test('J-F3: een prijs die per meerdere perioden factureert → onbekend, geen mail (review #114)', () => {
+  const kwartaal = subscriptionRowFromStripe('school-1', stripeSub({
+    items: { data: [{ price: { metadata: { plan: 'premium' }, recurring: { interval: 'month', interval_count: 3 } } }] },
+  }));
+  assert.equal(kwartaal.interval, null);
+  const gewoon = subscriptionRowFromStripe('s', stripeSub({
+    items: { data: [{ price: { metadata: { plan: 'premium' }, recurring: { interval: 'year', interval_count: 1 } } }] },
+  }));
+  assert.equal(gewoon.interval, 'jaar');
+});
+
+test('J-S1: een jaarabonnement krijgt een herinnering met interval jaar', () => {
+  const { reminders } = selectFreePeriodReminders([rij({ interval: 'jaar' })], NU_7D);
+  assert.equal(reminders[0].interval, 'jaar');
+});
+
+test('J-T1: de mailtekst volgt de periode — jaarlijks of maandelijks', () => {
+  const jaar = buildReminderCopy({ plan: 'premium', interval: 'jaar', daysLeft: 7, endsAt: EINDE });
+  assert.match(jaar.intro, /wordt jaarlijks automatisch geïncasseerd/);
+  assert.doesNotMatch(jaar.intro, /maandelijks/);
+  const maand = buildReminderCopy({ plan: 'premium', interval: 'maand', daysLeft: 7, endsAt: EINDE });
+  assert.match(maand.intro, /wordt maandelijks automatisch geïncasseerd/);
+  // Zonder interval: maandelijks, zoals vóór de jaarvariant.
+  const zonder = buildReminderCopy({ plan: 'premium', daysLeft: 7, endsAt: EINDE });
+  assert.match(zonder.intro, /maandelijks/);
 });
 
 test('F2: een geplande opzegging komt mee, zodat de selectie hem overslaat', () => {

@@ -302,3 +302,86 @@ test('het vandaag-bedrag komt in twee eenheden, zodat het scherm er één kan ki
   assert.equal(t.vandaagVerschuldigdNettoCenten, 0);
   assert.equal(t.vandaagVerschuldigdCenten, 0);
 });
+
+// ── Jaarabonnement (J1–J3) ──────────────────────────────────────────────────
+
+const geldigePremiumJaar = {
+  id: 'price_premium_jaar', active: true, currency: 'eur',
+  recurring: { interval: 'year' }, unit_amount: 54000, tax_behavior: 'exclusive',
+  metadata: { plan: 'premium', trial_interval: '1 month' },
+};
+const geldigeBasicJaar = {
+  id: 'price_basic_jaar', active: true, currency: 'eur',
+  recurring: { interval: 'year' }, unit_amount: 30000, tax_behavior: 'exclusive',
+  metadata: { plan: 'basic', trial_interval: '1 month' },
+};
+
+test('jaar: de lookup key is <plan>_jaar; maand blijft <plan>_standaard (ook als default)', () => {
+  assert.equal(lookupKeyForPlan('basic', 'jaar'), 'basic_jaar');
+  assert.equal(lookupKeyForPlan('premium', 'jaar'), 'premium_jaar');
+  assert.equal(lookupKeyForPlan('premium', 'maand'), 'premium_standaard');
+  assert.equal(lookupKeyForPlan('premium'), 'premium_standaard');
+});
+
+test('jaar: resolvet de jaarprijs, met bedragen per jaar en dezelfde gratis eerste maand', async () => {
+  const r = await resolveSignupOffer(
+    deps({ premium_standaard: geldigePremium, premium_jaar: geldigePremiumJaar }),
+    'premium', opt({ interval: 'jaar' }),
+  );
+  assert.equal(r.ok, true);
+  assert.equal(r.interval, 'jaar');
+  assert.equal(r.priceId, 'price_premium_jaar');
+  assert.equal(r.bedragen.nettoCenten, 54000);
+  assert.equal(r.bedragen.brutoCenten, 65340);
+  assert.equal(r.bedragen.interval, 'year');
+  assert.equal(r.trial.tekst, '1 maand gratis');
+  assert.equal(r.vandaagVerschuldigdCenten, 0);
+
+  const b = await resolveSignupOffer(deps({ basic_jaar: geldigeBasicJaar }), 'basic', opt({ interval: 'jaar' }));
+  assert.equal(b.bedragen.nettoCenten, 30000);
+  assert.equal(b.bedragen.brutoCenten, 36300);
+});
+
+test('zonder interval: maandelijks, zoals vóór de jaarvariant', async () => {
+  const r = await resolveSignupOffer(
+    deps({ premium_standaard: geldigePremium, premium_jaar: geldigePremiumJaar }), 'premium', opt(),
+  );
+  assert.equal(r.interval, 'maand');
+  assert.equal(r.priceId, 'price_premium');
+});
+
+test('jaar: ontbreekt de jaarprijs in Stripe, dan price_not_found met de jaarnaam', async () => {
+  const r = await resolveSignupOffer(deps({ premium_standaard: geldigePremium }), 'premium', opt({ interval: 'jaar' }));
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'price_not_found');
+  assert.equal(r.detail, 'premium_jaar');
+});
+
+test('periode-poort: een maandprijs onder de jaarnaam (of andersom) wordt geweigerd', async () => {
+  const fout1 = await resolveSignupOffer(deps({ premium_jaar: geldigePremium }), 'premium', opt({ interval: 'jaar' }));
+  assert.equal(fout1.reason, 'price_interval_mismatch');
+  const fout2 = await resolveSignupOffer(deps({ premium_standaard: geldigePremiumJaar }), 'premium', opt());
+  assert.equal(fout2.reason, 'price_interval_mismatch');
+  const elkeTweeMaanden = { ...geldigePremium, recurring: { interval: 'month', interval_count: 2 } };
+  const fout3 = await resolveSignupOffer(deps({ premium_standaard: elkeTweeMaanden }), 'premium', opt());
+  assert.equal(fout3.reason, 'price_interval_mismatch');
+});
+
+test('J3: jaar + geaccepteerde actiecode wordt geweigerd', async () => {
+  const promo = async (code) => (code === 'STARTGRATIS' ? startgratis : geenPromo);
+  const r = await resolveSignupOffer(
+    deps({ premium_jaar: geldigePremiumJaar }, promo), 'premium', opt({ interval: 'jaar', promoCode: 'startgratis' }),
+  );
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'jaar_met_korting');
+});
+
+test('J3: jaar + een ONGELDIGE code gaat gewoon door met het standaardaanbod', async () => {
+  const r = await resolveSignupOffer(
+    deps({ premium_jaar: geldigePremiumJaar }), 'premium', opt({ interval: 'jaar', promoCode: 'BESTAATNIET' }),
+  );
+  assert.equal(r.ok, true);
+  assert.equal(r.promoGeweigerd, true);
+  assert.equal(r.korting, null);
+  assert.equal(r.interval, 'jaar');
+});

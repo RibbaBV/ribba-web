@@ -13,7 +13,11 @@
 // - ONTVANGEN definitieve HTTP-fout: poging afgesloten; een bewuste nieuwe
 //   klik is een nieuwe poging met een NIEUWE attempt_id (anders blijft de
 //   gebruiker Stripe's gecachte fout herhalen);
-// - een ander plan is altijd een eigen poging met een eigen attempt_id.
+// - een ander plan is altijd een eigen poging met een eigen attempt_id;
+// - een andere factuurperiode (maand/jaar) óók: dezelfde idempotency-key met
+//   andere parameters zou Stripe weigeren, of erger, de oude sessie teruggeven.
+
+import { DEFAULT_BILLING_INTERVAL, type BillingInterval } from './plan-pricing';
 
 export type UpgradePlan = 'basic' | 'premium';
 
@@ -24,13 +28,13 @@ export type CheckoutController = {
    * Start een poging. Geeft de attempt_id terug, of null wanneer er al
    * een aanroep loopt (dubbelklik/tweede knop) — dan niets doen.
    */
-  begin(plan: UpgradePlan): string | null;
+  begin(plan: UpgradePlan, interval?: BillingInterval): string | null;
   /**
    * Aanroep mislukt: knoppen weer vrij. 'network' → attempt_id blijft
    * staan (zelfde poging hervatten); 'definitive' → poging afgesloten,
    * de volgende klik krijgt een nieuwe attempt_id.
    */
-  fail(plan: UpgradePlan, kind: CheckoutFailureKind): void;
+  fail(plan: UpgradePlan, kind: CheckoutFailureKind, interval?: BillingInterval): void;
   /**
    * Herstel na terugkeer uit de bfcache (pageshow met persisted=true,
    * correctieronde 21 jul): bij succes blijft de lock bewust staan tot de
@@ -50,18 +54,22 @@ export function createCheckoutController(
   genUuid: () => string = () => crypto.randomUUID(),
 ): CheckoutController {
   let inFlight: UpgradePlan | null = null;
-  const attemptIds = new Map<UpgradePlan, string>();
+  // Sleutel = plan + periode: Basic maandelijks en Basic jaarlijks zijn twee
+  // verschillende pogingen.
+  const attemptIds = new Map<string, string>();
+  const sleutel = (plan: UpgradePlan, interval: BillingInterval) => `${plan}:${interval}`;
 
   return {
-    begin(plan) {
+    begin(plan, interval = DEFAULT_BILLING_INTERVAL) {
       if (inFlight !== null) return null;
       inFlight = plan;
-      if (!attemptIds.has(plan)) attemptIds.set(plan, genUuid());
-      return attemptIds.get(plan)!;
+      const k = sleutel(plan, interval);
+      if (!attemptIds.has(k)) attemptIds.set(k, genUuid());
+      return attemptIds.get(k)!;
     },
-    fail(plan, kind) {
+    fail(plan, kind, interval = DEFAULT_BILLING_INTERVAL) {
       if (inFlight === plan) inFlight = null;
-      if (kind === 'definitive') attemptIds.delete(plan);
+      if (kind === 'definitive') attemptIds.delete(sleutel(plan, interval));
     },
     reset() {
       inFlight = null;
@@ -98,6 +106,8 @@ export async function startStripeCheckout(opts: {
   schoolId: string;
   plan: UpgradePlan;
   attemptId: string;
+  /** Maandelijks of jaarlijks; zonder waarde maandelijks. */
+  interval?: BillingInterval;
   fetchImpl?: typeof fetch;
 }): Promise<StartCheckoutResult> {
   const doFetch = opts.fetchImpl ?? fetch;
@@ -113,6 +123,10 @@ export async function startStripeCheckout(opts: {
         school_id: opts.schoolId,
         plan: opts.plan,
         attempt_id: opts.attemptId,
+        // Altijd expliciet meesturen. De edge function valt bij een
+        // ontbrekende waarde ook terug op maandelijks, maar een expliciete
+        // keuze is in de serverlog terug te vinden.
+        interval: opts.interval ?? DEFAULT_BILLING_INTERVAL,
       }),
     });
   } catch {

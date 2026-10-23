@@ -10,6 +10,7 @@ import {
   verzendknopLabel,
   wachtwoordBijInschrijven,
 } from '@/lib/signup-funnel';
+import { perIntervalTekst, planExtraFeatures, type BillingInterval } from '@/lib/plan-pricing';
 
 // Het aanbod komt SERVER-SIDE uit Stripe, niet uit een lijst in deze
 // component. Een wijziging van €25 → €30 of van 1 → 3 maanden gratis moet
@@ -29,6 +30,8 @@ import {
 // meer — die keuze vlak vóór een machtiging leverde alleen twijfel op, en de
 // prijs die telt is toch pas na de gratis periode aan de orde.
 type Aanbod = {
+  /** De factuurperiode waarvoor de server dit aanbod resolvede. */
+  interval: BillingInterval;
   bedragen: {
     nettoCenten: number;
     btwCenten: number;
@@ -164,17 +167,62 @@ export default function SchoolRegistrationForm() {
   const [codeGeweigerd, setCodeGeweigerd] = useState(false);
   const [codeBezig, setCodeBezig] = useState(false);
 
-  const haalAanbod = useCallback(async (codeInput: string | null) => {
+  // ── Maandelijks of jaarlijks (J2) ────────────────────────────────────────
+  // Alleen de KEUZE leeft hier. Het bedrag per jaar komt net als het
+  // maandbedrag van de server (Stripe-Price `<plan>_jaar`), niet uit een
+  // vermenigvuldiging in deze component.
+  //
+  // J3: een actiecode en jaarlijks gaan niet samen. Zodra de server een code
+  // accepteert, verdwijnt de jaaroptie en staat de keuze op maandelijks. De
+  // server weigert de combinatie hoe dan ook; dit voorkomt alleen dat iemand
+  // er tegenaan loopt.
+  const [periode, setPeriode] = useState<BillingInterval>('maand');
+  const [intervalMelding, setIntervalMelding] = useState<string | null>(null);
+
+  const haalAanbod = useCallback(async (
+    codeInput: string | null,
+    gewenstInterval: BillingInterval = 'maand',
+  ) => {
     // Zolang de oude submitroute draait, wordt er geen code meegestuurd — ook
     // niet als er er op een of andere manier toch een in de state komt. Het
     // getoonde aanbod is dan gegarandeerd het aanbod dat wordt uitgevoerd.
     const code = promoBeschikbaar ? codeInput : null;
     setCodeBezig(true);
+    setIntervalMelding(null);
+
+    async function vraag(c: string | null, i: BillingInterval) {
+      const params = new URLSearchParams();
+      if (c) params.set('code', c);
+      if (i !== 'maand') params.set('interval', i);
+      const qs = params.toString();
+      return (await fetch(qs ? `/api/signup/offer?${qs}` : '/api/signup/offer')).json();
+    }
+
     try {
-      const url = code ? `/api/signup/offer?code=${encodeURIComponent(code)}` : '/api/signup/offer';
-      const d = await (await fetch(url)).json();
+      // Met een code vragen we altijd het maandaanbod op (J3). Wordt de code
+      // niet geaccepteerd, dan halen we de oorspronkelijke keuze terug — een
+      // verkeerd getypte code hoort niemand van jaarlijks af te halen.
+      let d = await vraag(code, code ? 'maand' : gewenstInterval);
+      if (code && gewenstInterval === 'jaar' && d?.beschikbaar && !d.promoToegepast) {
+        const opnieuw = await vraag(null, 'jaar');
+        if (opnieuw?.beschikbaar) d = { ...opnieuw, promoGeweigerd: d.promoGeweigerd };
+      }
+
+      // Jaarlijks niet beschikbaar (bv. de jaarprijs staat nog niet in
+      // Stripe)? Dan terug naar maandelijks, mét uitleg — niet het hele
+      // formulier op slot.
+      if (!d?.beschikbaar && !code && gewenstInterval === 'jaar') {
+        setIntervalMelding(
+          d?.error ?? 'Jaarlijks betalen is nu niet beschikbaar. Kies maandelijks of mail team@ribba.nl.',
+        );
+        d = await vraag(null, 'maand');
+      }
+
       if (d?.beschikbaar && d.bedragen) {
+        const ontvangenInterval: BillingInterval = d.interval === 'jaar' ? 'jaar' : 'maand';
+        setPeriode(ontvangenInterval);
         setAanbod({
+          interval: ontvangenInterval,
           bedragen: d.bedragen,
           vandaagVerschuldigdCenten: d.vandaagVerschuldigdCenten,
           vandaagVerschuldigdNettoCenten: d.vandaagVerschuldigdNettoCenten,
@@ -195,6 +243,14 @@ export default function SchoolRegistrationForm() {
   }, []);
 
   useEffect(() => { void haalAanbod(null); }, [haalAanbod]);
+
+  function kiesInterval(nieuw: BillingInterval) {
+    if (nieuw === periode) return;
+    // Met een geaccepteerde code is jaarlijks niet te kiezen (J3).
+    if (nieuw === 'jaar' && codeToegepast) return;
+    setPeriode(nieuw);
+    void haalAanbod(codeToegepast, nieuw);
+  }
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [serverError, setServerError] = useState('');
@@ -325,6 +381,11 @@ export default function SchoolRegistrationForm() {
           // die de SERVER heeft geaccepteerd. Een geweigerde code gaat niet
           // mee; de server valideert straks toch opnieuw.
           ...(promoBeschikbaar && codeToegepast ? { promo_code: codeToegepast } : {}),
+          // Maandelijks of jaarlijks. Met een actiecode altijd maandelijks
+          // (J3); de server weigert de combinatie ook zelf.
+          // Het interval van het getoonde (door de server bevestigde) aanbod,
+          // niet de keuze die nog onderweg kan zijn: getoond = afgerekend.
+          interval: codeToegepast ? 'maand' : (aanbod?.interval ?? 'maand'),
           kvk_number: normalizeBusinessRegister(form.kvk_number),
           btw_number: form.btw_number.trim() ? normalizeVat(form.btw_number) : '',
           // De nieuwe route kent geen wachtwoord; meesturen zou het stil
@@ -455,6 +516,53 @@ export default function SchoolRegistrationForm() {
                 in de app — ook tijdens de gratis periode.
               </p>
 
+              {/* Maandelijks of jaarlijks. Jaarlijks verdwijnt zodra er een
+                  actiecode is toegepast (J3). */}
+              <div role="radiogroup" aria-label="Betaalperiode" style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 14, marginBottom: 6 }}>Betalen</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {([
+                    ['maand', 'Maandelijks'],
+                    ...(codeToegepast ? [] : [['jaar', 'Jaarlijks']]),
+                  ] as [BillingInterval, string][]).map(([waarde, label]) => {
+                    const gekozen = periode === waarde;
+                    return (
+                      <label
+                        key={waarde}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 8,
+                          padding: '8px 14px', borderRadius: 8, cursor: codeBezig ? 'default' : 'pointer',
+                          border: `1px solid ${gekozen ? '#2563EB' : '#D6D3D1'}`,
+                          background: gekozen ? '#EFF6FF' : '#FFFFFF',
+                          fontSize: 14, fontWeight: gekozen ? 600 : 400, color: '#44403C',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="interval"
+                          value={waarde}
+                          checked={gekozen}
+                          disabled={codeBezig}
+                          onChange={() => kiesInterval(waarde)}
+                          style={{ accentColor: '#2563EB', margin: 0 }}
+                        />
+                        {label}
+                      </label>
+                    );
+                  })}
+                </div>
+                {codeToegepast && (
+                  <p style={{ margin: '6px 0 0', fontSize: 13, color: '#78716C', lineHeight: 1.5 }}>
+                    Met een actiecode betaal je maandelijks. Jaarlijks betalen kan zonder code.
+                  </p>
+                )}
+                {intervalMelding && (
+                  <p role="alert" style={{ margin: '6px 0 0', fontSize: 14, color: '#B45309', lineHeight: 1.5 }}>
+                    {intervalMelding}
+                  </p>
+                )}
+              </div>
+
               {/* Actiecode. Bewust bóven de kaarten: je ziet meteen wat hij
                   doet. Verschijnt pas wanneer het formulier naar de nieuwe
                   funnel post — zie lib/signup-funnel.ts. */}
@@ -471,7 +579,7 @@ export default function SchoolRegistrationForm() {
                     </span>
                     <button
                       type="button"
-                      onClick={() => { setCodeInvoer(''); void haalAanbod(null); }}
+                      onClick={() => { setCodeInvoer(''); void haalAanbod(null, 'maand'); }}
                       style={{
                         marginLeft: 'auto', background: 'none', border: 0, padding: 0,
                         fontSize: 13, color: '#57534E', textDecoration: 'underline', cursor: 'pointer',
@@ -500,17 +608,17 @@ export default function SchoolRegistrationForm() {
                         placeholder=""
                         onChange={(e) => { setCodeInvoer(e.target.value); setCodeGeweigerd(false); }}
                         onKeyDown={(e) => {
-                          if (e.key !== 'Enter') return;
+                          if (e.key !== 'Enter' || codeBezig) return;
                           // Anders verstuurt Enter het hele formulier.
                           e.preventDefault();
-                          if (codeInvoer.trim()) void haalAanbod(codeInvoer.trim());
+                          if (codeInvoer.trim()) void haalAanbod(codeInvoer.trim(), periode);
                         }}
                         style={{ flex: 1, minWidth: 0 }}
                       />
                       <button
                         type="button"
                         disabled={codeBezig || !codeInvoer.trim()}
-                        onClick={() => void haalAanbod(codeInvoer.trim())}
+                        onClick={() => void haalAanbod(codeInvoer.trim(), periode)}
                         style={{
                           padding: '0 16px', borderRadius: 8, border: '1px solid #D6D3D1',
                           background: '#FFFFFF', fontSize: 14, fontWeight: 600,
@@ -551,6 +659,14 @@ export default function SchoolRegistrationForm() {
                 <span style={{ flex: 1 }}>
                   <strong style={{ display: 'block' }}>Ribba Premium</strong>
 
+                  {/* J5: bij Premium jaarlijks verzorgt Ribba de eigen website.
+                      Alleen zichtbaar bij een jaaraanbod van de server. */}
+                  {planExtraFeatures('premium', aanbod.interval).map((extra) => (
+                    <span key={extra} style={{ display: 'block', fontSize: 14, color: '#1D4ED8', fontWeight: 600 }}>
+                      {extra}
+                    </span>
+                  ))}
+
                   {/* Mét einddatum, bewust. Stripe's eigen betaalpagina rekent
                       de kop altijd om naar dagen — "183 dagen gratis" waar wij
                       "6 maanden" zeggen. De datum is het herkenningspunt dat op
@@ -580,7 +696,7 @@ export default function SchoolRegistrationForm() {
                       daar hoort het ook thuis. */}
                   <span style={{ display: 'block', fontSize: 14, color: '#57534E' }}>
                     {aanbod.trial || aanbod.korting ? 'Daarna ' : ''}
-                    {bedrag(aanbod.bedragen.nettoCenten, aanbod.bedragen.valuta)} per maand excl. btw
+                    {bedrag(aanbod.bedragen.nettoCenten, aanbod.bedragen.valuta)} {perIntervalTekst(aanbod.interval)} excl. btw
                   </span>
                 </span>
                 <span style={{
@@ -1034,7 +1150,7 @@ export default function SchoolRegistrationForm() {
         <button
           type="submit"
           className="btn-primary"
-          disabled={submitting || (aanbodVereistVoorInschrijven && (aanbodFout || !aanbod))}
+          disabled={submitting || codeBezig || (aanbodVereistVoorInschrijven && (aanbodFout || !aanbod))}
           style={{ marginTop: 0 }}
         >
           {submitting ? (

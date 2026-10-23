@@ -51,7 +51,8 @@ import {
 import { sanitizeSignupAttribution } from '@/lib/signup-attribution';
 import { normaliseerTipCode } from '@/lib/ribba-tip';
 import { INSCHRIJFPLAN } from '@/lib/signup-plan';
-import { resolveSignupOffer } from '@/lib/signup-offer';
+import { JAAR_MET_KORTING_MELDING, resolveSignupOffer } from '@/lib/signup-offer';
+import { parseBillingInterval } from '@/lib/plan-pricing';
 import { maakOfferDeps } from '@/lib/signup-offer-deps';
 
 export const dynamic = 'force-dynamic';
@@ -98,6 +99,10 @@ export async function POST(request: NextRequest) {
     // dus hij reist gewoon mee en loopt daar dood.
     const tipCode = normaliseerTipCode(body.ribba_tip_code);
 
+    // Maandelijks of jaarlijks (J2). Ontbreekt hij, dan maandelijks — zo
+    // blijft een oude client werken zoals vóór de jaarvariant.
+    const interval = parseBillingInterval(body.interval);
+
     // ── 1. Validatie ─────────────────────────────────────────────────────
     // Geen plankeuze: iedereen start op Premium (besluit 16 aug). Een `plan`
     // in de body wordt genegeerd, niet gevalideerd — zou hij worden
@@ -107,6 +112,7 @@ export async function POST(request: NextRequest) {
         || !address || !postal_code || !city || !kvk_number) {
       return fout('Alle verplichte velden moeten ingevuld zijn.');
     }
+    if (!interval) return fout('Kies maandelijks of jaarlijks betalen.');
     if (!isLegalForm(legal_form)) {
       return fout('Kies de bedrijfsvorm van je rijschool (eenmanszaak, VOF of BV).');
     }
@@ -189,12 +195,23 @@ export async function POST(request: NextRequest) {
     }
     const stripe = deps.stripe;
 
-    const aanbod = await resolveSignupOffer(deps, INSCHRIJFPLAN, { promoCode: promo_code });
+    const aanbod = await resolveSignupOffer(deps, INSCHRIJFPLAN, { promoCode: promo_code, interval });
+    if (!aanbod.ok && aanbod.reason === 'jaar_met_korting') {
+      // J3: geen storing maar een combinatie die we niet aanbieden. De
+      // bezoeker kan dit zelf oplossen, dus een 400 met een echte zin.
+      return fout(JAAR_MET_KORTING_MELDING, 400, { reason: aanbod.reason });
+    }
     if (!aanbod.ok) {
       // G5. Nooit doorlaten naar een betaalpagina: dan betaalt iemand voor een
       // aanbod waar wij geen rechten aan kunnen koppelen.
       console.error('signup/start: aanbod geweigerd',
-        { plan: INSCHRIJFPLAN, reason: aanbod.reason, detail: aanbod.detail });
+        { plan: INSCHRIJFPLAN, interval, reason: aanbod.reason, detail: aanbod.detail });
+      if (interval === 'jaar' && aanbod.reason === 'price_not_found') {
+        // De jaarprijs staat (nog) niet in Stripe. Maandelijks werkt wél, dus
+        // zeg dat — in plaats van te doen alsof inschrijven helemaal stilligt.
+        return fout('Jaarlijks betalen is nu niet beschikbaar. Kies maandelijks of mail team@ribba.nl.', 503,
+          { reason: aanbod.reason });
+      }
       return fout('Inschrijven is tijdelijk niet mogelijk. Mail team@ribba.nl.', 503,
         { reason: aanbod.reason });
     }

@@ -4,10 +4,17 @@ import Link from 'next/link';
 import RibbaLogo from '../../components/RibbaLogo';
 import TipCapture from '@/components/TipCapture';
 import { APP_STORE_URL } from '@/lib/app-links';
-import { getPlanPricing, formatCentsForDisplay } from '@/lib/plan-pricing';
+import { getPlanPricing, getPlanIntervalPricing, formatCentsForDisplay, planExtraFeatures } from '@/lib/plan-pricing';
 
 const BASIC_GROSS = formatCentsForDisplay(getPlanPricing('basic').grossMonthlyCents);
 const PREMIUM_GROSS = formatCentsForDisplay(getPlanPricing('premium').grossMonthlyCents);
+
+// Jaarprijs = 12× de maandprijs (J1), afgeleid uit plan-pricing. Hele euro's
+// zonder ",00" — zo staat de maandprijs er ook.
+const heleEuro = (cents: number) =>
+  cents % 100 === 0 ? `€${cents / 100}` : formatCentsForDisplay(cents);
+const BASIC_JAAR = heleEuro(getPlanIntervalPricing('basic', 'jaar').netCents);
+const PREMIUM_JAAR = heleEuro(getPlanIntervalPricing('premium', 'jaar').netCents);
 
 export const metadata: Metadata = {
   title: 'Ribba – Rijschool Planner',
@@ -370,6 +377,7 @@ export default function ProPage() {
                     <span className="plan-amount">25</span>
                     <span className="plan-period">/mnd excl. btw</span>
                   </div>
+                  <p style={{ fontSize: 13, color: '#78716C', margin: '4px 0 0' }}>of {BASIC_JAAR} per jaar excl. btw</p>
                   <p className="plan-desc">Voor zelfstandige instructeurs</p>
                 </div>
                 <div className="plan-features">
@@ -396,10 +404,13 @@ export default function ProPage() {
                     <span className="plan-amount">45</span>
                     <span className="plan-period">/mnd excl. btw</span>
                   </div>
+                  <p style={{ fontSize: 13, color: '#78716C', margin: '4px 0 0' }}>of {PREMIUM_JAAR} per jaar excl. btw</p>
                   <p className="plan-desc">Voor groeiende rijscholen</p>
                 </div>
                 <div className="plan-features">
-                  {PREMIUM_FEATURES.map((f) => (
+                  {/* J5: website-service hoort bij Premium jaarlijks — op deze
+                      pagina zonder keuze mét "Bij jaarlijks betalen:". */}
+                  {[...PREMIUM_FEATURES, ...planExtraFeatures('premium', 'statisch')].map((f) => (
                     <div key={f} className="plan-feature-row">
                       <CheckIcon color="#2563EB" />
                       <span>{f}</span>

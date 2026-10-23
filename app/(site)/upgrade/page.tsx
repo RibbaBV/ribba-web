@@ -5,7 +5,14 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import RibbaLogo from '../../components/RibbaLogo';
 import { BASIC_MAX_STUDENTS, BASIC_MAX_INSTRUCTORS } from '@/lib/plan-limits';
-import { getPlanPricing, formatCentsForDisplay } from '@/lib/plan-pricing';
+import {
+  getPlanIntervalPricing,
+  formatCentsForDisplay,
+  intervalEenheid,
+  perIntervalTekst,
+  planExtraFeatures,
+  type BillingInterval,
+} from '@/lib/plan-pricing';
 import {
   createCheckoutController,
   startStripeCheckout,
@@ -26,8 +33,10 @@ import {
 import Link from 'next/link';
 import { naOpzeggenTekst, OPZEGGEN_TEKST } from '@/lib/offboarding';
 
-const basicPricing = getPlanPricing('basic');
-const premiumPricing = getPlanPricing('premium');
+/** "€25" bij hele euro's, anders "€25,50" — voor het grote prijsgetal. */
+function prijsKop(cents: number): string {
+  return cents % 100 === 0 ? `€${cents / 100}` : formatCentsForDisplay(cents);
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -103,6 +112,13 @@ function UpgradeContent() {
   const [upgradeDone, setUpgradeDone] = useState(false);
   const upgradeAttemptRef = useRef<string | null>(null);
 
+  // Maandelijks of jaarlijks (J2). Alleen te kiezen bij een NIEUW abonnement
+  // via Checkout (proefperiode of geen plan). Wisselen tussen maand en jaar
+  // voor een betalende school bestaat niet (buiten scope).
+  const [periode, setPeriode] = useState<BillingInterval>('maand');
+  // Betaalperiode van een lopend abonnement (uit /api/current-plan); null = onbekend.
+  const [huidigInterval, setHuidigInterval] = useState<BillingInterval | null>(null);
+
   // Auth + resolve school_id (from URL or via Supabase session)
   useEffect(() => {
     const supabase = getSupabaseBrowser();
@@ -165,6 +181,7 @@ function UpgradeContent() {
         // valt (geen plan, geen beheerrechten).
         const body = (planRes.ok ? await planRes.json().catch(() => null) : null) ?? {};
         setCurrentPlan(body.plan ?? null);
+        setHuidigInterval(body.interval === 'jaar' || body.interval === 'maand' ? body.interval : null);
         setIsTrial(body.isTrial || false);
         setTrialEndsAt(body.trialEndsAt || null);
         setCancelledAt(body.cancelledAt || null);
@@ -239,7 +256,8 @@ function UpgradeContent() {
       return;
     }
 
-    const attemptId = checkoutControllerRef.current.begin(plan);
+    const gekozenPeriode: BillingInterval = periodeKiesbaar ? periode : 'maand';
+    const attemptId = checkoutControllerRef.current.begin(plan, gekozenPeriode);
     if (attemptId === null) return; // er loopt al een poging (dubbelklik)
 
     setLoading(plan);
@@ -262,13 +280,14 @@ function UpgradeContent() {
       schoolId,
       plan,
       attemptId,
+      interval: gekozenPeriode,
     });
 
     if (!result.ok) {
       // 'network' hervat dezelfde poging bij een nieuwe klik; 'definitive'
       // sluit de poging af zodat de volgende klik een nieuwe attempt_id
       // krijgt (Stripe cachet ook fouten op een idempotency-key).
-      checkoutControllerRef.current.fail(plan, result.kind);
+      checkoutControllerRef.current.fail(plan, result.kind, gekozenPeriode);
       setError(result.error);
       setLoading(null);
       return;
@@ -465,6 +484,19 @@ function UpgradeContent() {
     if (plan === 'premium' && currentPlan === 'basic') return true;
     return false;
   };
+
+  // De keuze maand/jaar verschijnt alleen waar een checkout een nieuw
+  // abonnement start. Bij een lopend abonnement tonen we de periode van dát
+  // abonnement (uit /api/current-plan). Is die onbekend, dan de maandprijs als
+  // kop maar géén incassobedrag: liever niets dan een verkeerde periode.
+  const periodeKiesbaar = canManageSubscription && (isTrial || !currentPlan);
+  const lopendAbonnement = Boolean(currentPlan) && !isTrial;
+  const getoondePeriode: BillingInterval = periodeKiesbaar
+    ? periode
+    : (lopendAbonnement ? (huidigInterval ?? 'maand') : 'maand');
+  const incassoBekend = periodeKiesbaar || !lopendAbonnement || huidigInterval !== null;
+  const basicPrijs = getPlanIntervalPricing('basic', getoondePeriode);
+  const premiumPrijs = getPlanIntervalPricing('premium', getoondePeriode);
 
   // Basic-limietcheck: spiegelt /api/checkout (regel 86-125) zodat de gebruiker
   // niet eerst hoeft te klikken om een 400 te krijgen. Counts nog laden? → null;
@@ -706,6 +738,40 @@ function UpgradeContent() {
         {/* Plan Cards — alleen tonen nadat session-check + plan-fetch klaar zijn */}
         {!planLoading && (
         <>
+        {periodeKiesbaar && (
+          <div
+            role="radiogroup"
+            aria-label="Betaalperiode"
+            style={{ display: 'flex', justifyContent: 'center', gap: 8, margin: '0 auto 24px', flexWrap: 'wrap' }}
+          >
+            {([['maand', 'Maandelijks'], ['jaar', 'Jaarlijks']] as [BillingInterval, string][]).map(([waarde, label]) => {
+              const gekozen = periode === waarde;
+              return (
+                <label
+                  key={waarde}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '8px 16px', borderRadius: 999, cursor: loading ? 'default' : 'pointer',
+                    border: `1px solid ${gekozen ? '#2563EB' : '#D6D3D1'}`,
+                    background: gekozen ? '#EFF6FF' : '#FFFFFF',
+                    fontSize: 14, fontWeight: gekozen ? 600 : 500, color: '#44403C',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="periode"
+                    value={waarde}
+                    checked={gekozen}
+                    disabled={loading !== null}
+                    onChange={() => setPeriode(waarde)}
+                    style={{ accentColor: '#2563EB', margin: 0 }}
+                  />
+                  {label}
+                </label>
+              );
+            })}
+          </div>
+        )}
         <div className="plans-grid">
           {/* Basic Plan */}
           <div className={`plan-card${isCurrentPlan('basic') ? ' plan-card-current' : ''}`}>
@@ -713,19 +779,21 @@ function UpgradeContent() {
             <div className="plan-header">
               <span className="pill">Basic</span>
               <div className="plan-price">
-                <span className="plan-amount">&euro;25</span>
-                <span className="plan-period">/maand excl. btw</span>
+                <span className="plan-amount">{prijsKop(basicPrijs.netCents)}</span>
+                <span className="plan-period">/{intervalEenheid(getoondePeriode)} excl. btw</span>
               </div>
-              <p style={{ fontSize: 13, color: '#78716C', margin: '4px 0 0' }}>
-                Incasso: {formatCentsForDisplay(basicPricing.grossMonthlyCents)} per maand incl. 21% btw
-              </p>
+              {incassoBekend && (
+                <p style={{ fontSize: 13, color: '#78716C', margin: '4px 0 0' }}>
+                  Incasso: {formatCentsForDisplay(basicPrijs.grossCents)} {perIntervalTekst(getoondePeriode)} incl. 21% btw
+                </p>
+              )}
               <p className="plan-desc">
                 Alles wat je nodig hebt om je rijschool te draaien.
               </p>
             </div>
 
             <div className="plan-features">
-              {basicFeatures.map((feat) => (
+              {[...basicFeatures, ...planExtraFeatures('basic', getoondePeriode)].map((feat) => (
                 <div key={feat} className="plan-feature-row">
                   <CheckIcon />
                   <span>{feat}</span>
@@ -788,19 +856,22 @@ function UpgradeContent() {
             <div className="plan-header">
               <span className="pill pill-premium">Premium</span>
               <div className="plan-price">
-                <span className="plan-amount">&euro;45</span>
-                <span className="plan-period">/maand excl. btw</span>
+                <span className="plan-amount">{prijsKop(premiumPrijs.netCents)}</span>
+                <span className="plan-period">/{intervalEenheid(getoondePeriode)} excl. btw</span>
               </div>
-              <p style={{ fontSize: 13, color: '#78716C', margin: '4px 0 0' }}>
-                Incasso: {formatCentsForDisplay(premiumPricing.grossMonthlyCents)} per maand incl. 21% btw
-              </p>
+              {incassoBekend && (
+                <p style={{ fontSize: 13, color: '#78716C', margin: '4px 0 0' }}>
+                  Incasso: {formatCentsForDisplay(premiumPrijs.grossCents)} {perIntervalTekst(getoondePeriode)} incl. 21% btw
+                </p>
+              )}
               <p className="plan-desc">
                 Groei je rijschool met meer leerlingen en instructeurs.
               </p>
             </div>
 
             <div className="plan-features">
-              {premiumFeatures.map((feat) => (
+              {/* J5: de website-service alleen wanneer "Jaarlijks" gekozen is. */}
+              {[...premiumFeatures, ...planExtraFeatures('premium', getoondePeriode)].map((feat) => (
                 <div key={feat} className="plan-feature-row">
                   <CheckIcon color="#2563EB" />
                   <span>{feat}</span>
@@ -911,7 +982,9 @@ function UpgradeContent() {
           title="Nu upgraden naar Premium?"
           body={upgradeConfirmText(
             upgradePreview,
-            formatCentsForDisplay(premiumPricing.netMonthlyCents),
+            // De Premium-prijs voor de periode van het lopende abonnement:
+            // die komt uit de voorvertoning van de server.
+            formatCentsForDisplay(getPlanIntervalPricing('premium', upgradePreview.interval).netCents),
             formatCentsForDisplay,
           )}
           confirmLabel={upgrading === 'confirm' ? 'Bezig...' : 'Ja, upgrade nu'}

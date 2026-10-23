@@ -174,8 +174,34 @@ test('upgrade-voorvertoning: vraagt Premium en leest het bedrag uit Stripe', asy
   assert.deepEqual(calls[0].body, { school_id: SCHOOL, action: 'upgrade_preview', plan: 'premium' });
   assert.deepEqual(r, { ok: true, preview: {
     prorationDate: 1790000000, inFreePeriod: false, differenceExclCents: 1033, differenceInclCents: 1250,
-    nextInvoiceAt: '2026-11-01T11:28:00.000Z',
+    nextInvoiceAt: '2026-11-01T11:28:00.000Z', interval: 'maand',
   } });
+});
+
+test('upgrade-voorvertoning: interval uit de server; ontbreekt hij, dan maand; onbekend → geen toestemmingsvraag', async () => {
+  const jaar = await previewUpgrade({ supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, fetchImpl: fakeFetch(200, { ...goedePreview, interval: 'jaar' }).fn });
+  assert.equal(jaar.ok, true);
+  assert.equal(jaar.preview.interval, 'jaar');
+  const maand = await previewUpgrade({ supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, fetchImpl: fakeFetch(200, { ...goedePreview, interval: 'maand' }).fn });
+  assert.equal(maand.preview.interval, 'maand');
+  const onbekend = await previewUpgrade({ supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, fetchImpl: fakeFetch(200, { ...goedePreview, interval: 'week' }).fn });
+  assert.equal(onbekend.ok, false);
+});
+
+test('bevestigingstekst: jaarabonnement → "per jaar", met de jaarprijs die de pagina meegeeft', () => {
+  const p = { prorationDate: 1, inFreePeriod: false, differenceExclCents: 1033, differenceInclCents: 1250, nextInvoiceAt: '2026-11-01T11:28:00Z', interval: 'jaar' };
+  const t = upgradeConfirmText(p, '€540,00', euro);
+  assert.match(t, /Daarna betaal je €540,00 per jaar excl\. btw\.$/);
+  assert.doesNotMatch(t, /per maand/);
+  const gratis = upgradeConfirmText({ ...p, inFreePeriod: true }, '€540,00', euro);
+  assert.match(gratis, /betaal je €540,00 per jaar excl\. btw\./);
+  const nul = upgradeConfirmText({ ...p, differenceExclCents: 0 }, '€540,00', euro);
+  assert.match(nul, /betaal je €540,00 per jaar excl\. btw\./);
+});
+
+test('/upgrade: de bevestiging krijgt de Premium-prijs voor de periode uit de voorvertoning', () => {
+  const src = readFileSync(new URL('../app/(site)/upgrade/page.tsx', import.meta.url), 'utf8');
+  assert.match(src, /getPlanIntervalPricing\('premium', upgradePreview\.interval\)/);
 });
 
 test('upgrade-voorvertoning: een onvolledig antwoord geeft geen toestemmingsvraag', async () => {

@@ -92,6 +92,143 @@ export function netMonthlyEurosForDb(pricing: PlanPricing): number {
   return pricing.netMonthlyCents / 100;
 }
 
+// ── Factuurperiode: maandelijks of jaarlijks ────────────────────────────────
+//
+// BESLUIT J1 (Önder, okt 2026): de jaarprijs is exact 12× de maandprijs,
+// zonder korting. Daarom staat hier GEEN tweede bedragentabel: de jaarbedragen
+// worden afgeleid van NET_MONTHLY_CENTS. Een losse jaarconstante zou een
+// tweede waarheid zijn die bij de eerstvolgende prijswijziging uit de pas
+// loopt.
+//
+// De draadwaarde is overal `'maand' | 'jaar'`. Ontbreekt hij, dan is het
+// `'maand'` — zo blijven oude clients en verzoeken werken zoals vóór de
+// jaarvariant.
+
+export const BILLING_INTERVALS = ['maand', 'jaar'] as const;
+export type BillingInterval = (typeof BILLING_INTERVALS)[number];
+export const DEFAULT_BILLING_INTERVAL: BillingInterval = 'maand';
+
+const MAANDEN_PER_INTERVAL: Record<BillingInterval, number> = {
+  maand: 1,
+  jaar: 12,
+};
+
+export function isBillingInterval(value: unknown): value is BillingInterval {
+  return typeof value === 'string' && (BILLING_INTERVALS as readonly string[]).includes(value);
+}
+
+/**
+ * Servergrens voor `interval` uit een verzoek. Afwezig (undefined, null of
+ * lege string) → `'maand'`. Iets anders dan exact `maand` of `jaar` → null,
+ * zodat de aanroeper het verzoek kan weigeren in plaats van te raden.
+ */
+export function parseBillingInterval(value: unknown): BillingInterval | null {
+  if (value === undefined || value === null || value === '') return DEFAULT_BILLING_INTERVAL;
+  return isBillingInterval(value) ? value : null;
+}
+
+/** Stripe's `recurring.interval` dat bij een Ribba-interval hoort. */
+export function stripeIntervalFor(interval: BillingInterval): 'month' | 'year' {
+  return interval === 'jaar' ? 'year' : 'month';
+}
+
+/** Stripe's `recurring.interval` terugvertaald; onbekend → null. */
+export function billingIntervalFromStripe(value: unknown): BillingInterval | null {
+  if (value === 'month') return 'maand';
+  if (value === 'year') return 'jaar';
+  return null;
+}
+
+/**
+ * Interval van een Stripe-prijs (`price.recurring`). Alleen elke maand of elk
+ * jaar telt; een prijs die per meerdere perioden factureert (interval_count ≠ 1)
+ * of ontbrekende gegevens → null (onbekend).
+ */
+export function intervalVanStripePrijs(
+  recurring: { interval?: string | null; interval_count?: number | null } | null | undefined,
+): BillingInterval | null {
+  if (!recurring) return null;
+  if ((recurring.interval_count ?? 1) !== 1) return null;
+  return billingIntervalFromStripe(recurring.interval);
+}
+
+export interface PlanIntervalPricing {
+  plan: PaidPlan;
+  interval: BillingInterval;
+  /** Prijs per periode excl. btw, in centen (jaar = 12× maand). */
+  netCents: number;
+  vatCents: number;
+  grossCents: number;
+  vatRatePercent: typeof VAT_RATE_PERCENT;
+}
+
+/**
+ * Bedragen per factuurperiode. Afgeleid van de maandprijs (J1: 12×, geen
+ * korting); fail-closed bij een onbekend plan of interval.
+ */
+export function getPlanIntervalPricing(plan: unknown, interval: unknown): PlanIntervalPricing {
+  const maand = getPlanPricing(plan);
+  if (!isBillingInterval(interval)) {
+    throw new Error(`Onbekende factuurperiode: ${String(interval)}`);
+  }
+  const netCents = maand.netMonthlyCents * MAANDEN_PER_INTERVAL[interval];
+  const vatCents = Math.round((netCents * VAT_RATE_PERCENT) / 100);
+  return {
+    plan: maand.plan,
+    interval,
+    netCents,
+    vatCents,
+    grossCents: netCents + vatCents,
+    vatRatePercent: VAT_RATE_PERCENT,
+  };
+}
+
+/** "per maand" / "per jaar". */
+export function perIntervalTekst(interval: BillingInterval): string {
+  return interval === 'jaar' ? 'per jaar' : 'per maand';
+}
+
+/** "maand" / "jaar" — voor "€ 45,00 / maand". */
+export function intervalEenheid(interval: BillingInterval): string {
+  return interval === 'jaar' ? 'jaar' : 'maand';
+}
+
+// ── J5: website-service bij Premium jaarlijks ──────────────────────────────
+//
+// BESLUIT J5 (Önder, okt 2026): uitsluitend Premium, uitsluitend bij jaarlijks
+// betalen, omvat de website-service — Ribba verzorgt de eigen website van de
+// rijschool. Nooit bij Basic, nooit bij Premium maandelijks.
+//
+// Eén plek voor de tekst. Pagina's vragen hier wat er extra bij een plan
+// hoort, in plaats van de zin zelf te typen.
+
+/** De bullet zoals hij staat waar "Jaarlijks" gekozen is. */
+export const WEBSITE_SERVICE_TEKST =
+  'Wij verzorgen je eigen website — ontwerp, (her)bouw en support';
+
+/** Dezelfde bullet op een pagina zonder maand/jaar-keuze. */
+export const WEBSITE_SERVICE_TEKST_STATISCH =
+  'Bij jaarlijks betalen: wij verzorgen je eigen website — ontwerp, (her)bouw en support';
+
+/**
+ * Wat er bovenop de vaste features van een plan bij komt.
+ *
+ * - `interval` gegeven (pagina mét keuze): alleen Premium + jaar krijgt de
+ *   bullet, zonder voorvoegsel.
+ * - `interval` 'statisch' (pagina zonder keuze): Premium krijgt de bullet mét
+ *   "Bij jaarlijks betalen:", zodat hij nooit als onderdeel van maandelijks
+ *   leest.
+ * - Basic krijgt nooit iets.
+ */
+export function planExtraFeatures(
+  plan: PaidPlan,
+  interval: BillingInterval | 'statisch',
+): string[] {
+  if (plan !== 'premium') return [];
+  if (interval === 'statisch') return [WEBSITE_SERVICE_TEKST_STATISCH];
+  return interval === 'jaar' ? [WEBSITE_SERVICE_TEKST] : [];
+}
+
 /** Vaste Mollie-omschrijving per plan (checkout, webhook én reconcile). */
 export function planDescription(plan: PaidPlan): string {
   return `Ribba ${plan === 'premium' ? 'Premium' : 'Basic'} – Maandabonnement`;
