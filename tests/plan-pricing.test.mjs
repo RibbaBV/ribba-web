@@ -187,4 +187,7 @@ test('J-R3: het aanmeldformulier stuurt het interval van het getoonde aanbod mee
   const form = readFileSync(new URL('../components/SchoolRegistrationForm.tsx', import.meta.url), 'utf8');
   assert.match(form, /interval: codeToegepast \? 'maand' : \(aanbod\?\.interval \?\? 'maand'\)/);
   assert.doesNotMatch(form, /interval: codeToegepast \? 'maand' : periode,/);
+  // Tijdens het ophalen van een aanbod kan niet worden verstuurd of opnieuw gevraagd.
+  assert.match(form, /disabled=\{submitting \|\| codeBezig \|\|/);
+  assert.match(form, /e\.key !== 'Enter' \|\| codeBezig/);
 });

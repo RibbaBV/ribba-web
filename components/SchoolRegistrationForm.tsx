@@ -608,7 +608,7 @@ export default function SchoolRegistrationForm() {
                         placeholder=""
                         onChange={(e) => { setCodeInvoer(e.target.value); setCodeGeweigerd(false); }}
                         onKeyDown={(e) => {
-                          if (e.key !== 'Enter') return;
+                          if (e.key !== 'Enter' || codeBezig) return;
                           // Anders verstuurt Enter het hele formulier.
                           e.preventDefault();
                           if (codeInvoer.trim()) void haalAanbod(codeInvoer.trim(), periode);
@@ -1150,7 +1150,7 @@ export default function SchoolRegistrationForm() {
         <button
           type="submit"
           className="btn-primary"
-          disabled={submitting || (aanbodVereistVoorInschrijven && (aanbodFout || !aanbod))}
+          disabled={submitting || codeBezig || (aanbodVereistVoorInschrijven && (aanbodFout || !aanbod))}
           style={{ marginTop: 0 }}
         >
           {submitting ? (
