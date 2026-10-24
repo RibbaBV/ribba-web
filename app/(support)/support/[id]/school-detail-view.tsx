@@ -16,6 +16,7 @@
 // proef" — en dat is precies het gesprek dat support voert.
 
 import Link from 'next/link';
+import type { SchoolOwners } from '@/lib/support-school-owner';
 import { useEffect, useState } from 'react';
 import OwnerDashboardLink from '../owner-dashboard-link';
 import { withCbrRecovery, type SupportEvent } from '@/lib/support-event-recovery';
@@ -51,6 +52,7 @@ interface Licentie {
 }
 
 export interface Detail {
+  owners?: SchoolOwners | null;
   school: {
     id: string; naam: string; is_internal: boolean; status: string | null;
     aangemaakt: string; email: string | null; telefoon: string | null;
@@ -157,6 +159,7 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
         <div><p className={styles.eyebrow}>Schooldossier {school.is_internal && <span style={s.intern}>Testschool</span>}</p>
           <h1 className={styles.title}>{school.naam}</h1>
           <p className={styles.subtitle}>{school.plaats ?? 'Plaats niet ingevuld'} · ingeschreven {datum(school.aangemaakt)}</p>
+          {detail.owners && <p className={styles.subtitle}><strong>{detail.owners.status === 'ready' && detail.owners.names.length > 1 ? 'Eigenaren' : 'Eigenaar'}:</strong> {detail.owners.status === 'unavailable' ? 'Naam tijdelijk niet beschikbaar' : detail.owners.names.join(', ') || 'Geen eigenaaraccount gekoppeld'}</p>}
         </div>
         <Link href={`/support/${id}/bewerken`} className={styles.primaryButton}>Schoolgegevens bewerken <span aria-hidden="true">↗</span></Link>
       </div>
