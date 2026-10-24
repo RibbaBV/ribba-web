@@ -48,7 +48,12 @@ test('undo en status: geen plan, geen attempt_id', async () => {
   for (const action of ['undo', 'status']) {
     const { fn, calls } = fakeFetch(200, { success: true, scheduled: false });
     const r = await callChangePlan({ supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHOOL, action, attemptId: 'x', fetchImpl: fn });
-    assert.deepEqual(r, { ok: true, scheduled: false, switchAt: null });
+    // Bij status leest de pagina ook de betaalperiode; een oudere server
+    // zonder die velden geeft "bekend, geen periode, niets gepland".
+    const verwacht = action === 'status'
+      ? { ok: true, scheduled: false, switchAt: null, periode: { known: true, interval: null, change: null } }
+      : { ok: true, scheduled: false, switchAt: null };
+    assert.deepEqual(r, verwacht);
     assert.deepEqual(calls[0].body, { school_id: SCHOOL, action });
   }
 });

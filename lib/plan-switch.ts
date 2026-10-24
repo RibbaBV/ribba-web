@@ -14,6 +14,7 @@ import {
   perIntervalTekst,
   type BillingInterval,
 } from './plan-pricing';
+import { parseIntervalStatus, type IntervalChange, type IntervalStatus } from './interval-switch';
 
 export type PlanSwitchAction = 'schedule' | 'undo' | 'status';
 
@@ -25,7 +26,13 @@ export type PlanSwitchStatus =
   | { known: false };
 
 export type PlanSwitchResult =
-  | { ok: true; scheduled: boolean; switchAt: string | null }
+  | {
+      ok: true;
+      scheduled: boolean;
+      switchAt: string | null;
+      /** Alleen bij `status`: de betaalperiode en een geplande periodewissel. */
+      periode?: IntervalStatus;
+    }
   | { ok: false; error: string; kind: 'network' | 'definitive' };
 
 export const GENERIC_SWITCH_ERROR =
@@ -84,7 +91,7 @@ export async function callChangePlan(opts: {
     return { ok: false, error: NETWORK_SWITCH_ERROR, kind: 'network' };
   }
 
-  let data: { success?: unknown; scheduled?: unknown; switch_at?: unknown; error?: unknown } = {};
+  let data: Record<string, unknown> = {};
   try {
     data = await res.json();
   } catch {
@@ -105,14 +112,17 @@ export async function callChangePlan(opts: {
   if (typeof data.scheduled !== 'boolean') {
     return { ok: false, error: GENERIC_SWITCH_ERROR, kind: 'definitive' };
   }
+  // Bij `status` ook de betaalperiode (F4). Een onleesbare periode maakt
+  // alleen díé stand onbekend; de stand van de wissel naar Basic blijft gelden.
+  const periode = opts.action === 'status' ? { periode: parseIntervalStatus(data) } : {};
   if (data.scheduled) {
     const switchAt = typeof data.switch_at === 'string' ? data.switch_at : '';
     if (!switchAt || Number.isNaN(Date.parse(switchAt))) {
       return { ok: false, error: GENERIC_SWITCH_ERROR, kind: 'definitive' };
     }
-    return { ok: true, scheduled: true, switchAt };
+    return { ok: true, scheduled: true, switchAt, ...periode };
   }
-  return { ok: true, scheduled: false, switchAt: null };
+  return { ok: true, scheduled: false, switchAt: null, ...periode };
 }
 
 /**
@@ -126,6 +136,12 @@ export function statusFromResult(result: PlanSwitchResult): PlanSwitchStatus {
   if (result.scheduled && result.switchAt) return { known: true, scheduled: true, switchAt: result.switchAt };
   if (result.scheduled) return { known: false };
   return { known: true, scheduled: false };
+}
+
+/** De betaalperiode uit hetzelfde status-antwoord; fail-closed. */
+export function intervalStatusFromResult(result: PlanSwitchResult): IntervalStatus {
+  if (!result.ok || !result.periode) return { known: false };
+  return result.periode;
 }
 
 /** Wat /upgrade rond de wissel laat zien. */
@@ -318,4 +334,68 @@ export function upgradeConfirmText(p: UpgradePreview, premiumPriceExcl: string, 
     ? `${formatCents(p.differenceExclCents)} excl. btw (${formatCents(p.differenceInclCents)} incl. btw)`
     : `${formatCents(p.differenceExclCents)} excl. btw`;
   return `Je gaat direct over op Premium. Voor de rest van deze periode komt er ${bedrag} bij je volgende incasso op ${datum}. Daarna betaal je ${premiumPriceExcl} ${per} excl. btw.`;
+}
+
+// ── Overstappen tussen maandelijks en jaarlijks (F4, J6–J9) ─────────────────
+
+export type IntervalChangeResult =
+  /** In de gratis periode: direct gewisseld, de gratis periode blijft. */
+  | { ok: true; uitkomst: 'direct'; interval: BillingInterval; nextInvoiceAt: string | null }
+  /** Betalend: gepland per de volgende incassodatum (of einde van het jaar). */
+  | { ok: true; uitkomst: 'gepland'; change: IntervalChange }
+  /** Niets (meer) gepland: ingetrokken, of de school had die periode al. */
+  | { ok: true; uitkomst: 'geen' }
+  | { ok: false; error: string; kind: 'network' | 'definitive'; reason: string | null };
+
+/**
+ * `interval_schedule` (met `naar` en `attempt_id`) of `interval_undo`.
+ * Alleen een eenduidig antwoord telt als gelukt; foutteksten van de server
+ * zijn Nederlands en gaan ongewijzigd door.
+ */
+export async function callIntervalChange(opts: {
+  supabaseUrl: string;
+  accessToken: string;
+  schoolId: string;
+  action: 'interval_schedule' | 'interval_undo';
+  naar?: BillingInterval;
+  attemptId?: string;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}): Promise<IntervalChangeResult> {
+  const naar = opts.naar;
+  const body: Record<string, unknown> = { school_id: opts.schoolId, action: opts.action };
+  if (opts.action === 'interval_schedule') {
+    if (!naar || !opts.attemptId) {
+      return { ok: false, error: GENERIC_SWITCH_ERROR, kind: 'definitive', reason: null };
+    }
+    body.naar = naar;
+    body.attempt_id = opts.attemptId;
+  }
+  const r = await postChangePlan({ ...opts, body });
+  if (!r.ok) return { ok: false, error: NETWORK_SWITCH_ERROR, kind: 'network', reason: null };
+  const d = r.data;
+  const fout = (): IntervalChangeResult => ({
+    ok: false,
+    error: r.status === 200 ? GENERIC_SWITCH_ERROR : serverError(d),
+    kind: 'definitive',
+    reason: typeof d.reason === 'string' ? d.reason : null,
+  });
+  if (r.status !== 200 || d.success !== true) return fout();
+
+  if (opts.action === 'interval_undo') {
+    return d.interval_change === null ? { ok: true, uitkomst: 'geen' } : fout();
+  }
+
+  // Gratis periode: direct gewisseld naar precies de gevraagde periode.
+  if (d.changed === true) {
+    if (!naar || d.interval !== naar || d.in_free_period !== true) return fout();
+    const next = typeof d.next_invoice_at === 'string' && !Number.isNaN(Date.parse(d.next_invoice_at))
+      ? d.next_invoice_at
+      : null;
+    return { ok: true, uitkomst: 'direct', interval: naar, nextInvoiceAt: next };
+  }
+  if (d.interval_change === null && d.already_on_interval === true) return { ok: true, uitkomst: 'geen' };
+  const status = parseIntervalStatus({ interval_change: d.interval_change });
+  if (!status.known || !status.change || status.change.naar !== naar) return fout();
+  return { ok: true, uitkomst: 'gepland', change: status.change };
 }
