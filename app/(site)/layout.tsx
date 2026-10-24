@@ -19,9 +19,9 @@ export const metadata: Metadata = {
   title: "Ribba",
   description: "Ribba – slimme rijschool software",
   icons: {
-    icon: "/og-image.png",
-    shortcut: "/og-image.png",
-    apple: "/og-image.png",
+    icon: { url: "/ribba-icon.png", type: "image/png", sizes: "512x512" },
+    shortcut: "/ribba-icon.png",
+    apple: "/ribba-icon.png",
   },
   openGraph: {
     title: "Ribba – slimme rijschool software",

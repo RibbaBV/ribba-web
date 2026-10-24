@@ -8,7 +8,11 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Ribba Support',
   robots: { index: false, follow: false },
-  icons: { icon: '/og-image.png', apple: '/og-image.png' },
+  icons: {
+    icon: { url: '/ribba-icon.png', type: 'image/png', sizes: '512x512' },
+    shortcut: '/ribba-icon.png',
+    apple: '/ribba-icon.png',
+  },
 };
 
 // Een afzonderlijke root-layout geeft support een eigen browserdocument.
