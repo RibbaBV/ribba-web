@@ -19,6 +19,7 @@ const {
   planWisselGeblokkeerd,
   createIntervalAttempts,
   inGratisPeriode,
+  bevestigingsContext,
   PERIODE_GEBLOKKEERD_DOOR_PLANWISSEL,
 } = await import('../lib/interval-switch.ts');
 const { callChangePlan, callIntervalChange, intervalStatusFromResult, statusFromResult, GENERIC_SWITCH_ERROR, NETWORK_SWITCH_ERROR } =
@@ -40,16 +41,16 @@ const basisOpts = { supabaseUrl: 'https://x', accessToken: 'jwt', schoolId: SCHO
 // ── Status lezen ────────────────────────────────────────────────────────────
 
 test('status: interval en geplande periodewissel worden gelezen', () => {
-  assert.deepEqual(parseIntervalStatus({ interval: 'maand', interval_change: null }), { known: true, interval: 'maand', change: null });
+  assert.deepEqual(parseIntervalStatus({ interval: 'maand', interval_change: null }), { known: true, interval: 'maand', change: null, inFreePeriod: null, nextInvoiceAt: null });
   assert.deepEqual(
     parseIntervalStatus({ interval: 'maand', interval_change: { naar: 'jaar', switch_at: EINDE } }),
-    { known: true, interval: 'maand', change: { naar: 'jaar', switchAt: EINDE } },
+    { known: true, interval: 'maand', change: { naar: 'jaar', switchAt: EINDE }, inFreePeriod: null, nextInvoiceAt: null },
   );
 });
 
 test('status: ontbrekende velden → null (oudere server)', () => {
-  assert.deepEqual(parseIntervalStatus({}), { known: true, interval: null, change: null });
-  assert.deepEqual(parseIntervalStatus({ interval: 'jaar' }), { known: true, interval: 'jaar', change: null });
+  assert.deepEqual(parseIntervalStatus({}), { known: true, interval: null, change: null, inFreePeriod: null, nextInvoiceAt: null });
+  assert.deepEqual(parseIntervalStatus({ interval: 'jaar' }), { known: true, interval: 'jaar', change: null, inFreePeriod: null, nextInvoiceAt: null });
 });
 
 test('status: onbekende waarden → onbekend, nooit raden', () => {
@@ -70,7 +71,7 @@ test('status via callChangePlan: periode alleen bij status, en een kapotte perio
   const goed = await callChangePlan({ ...basisOpts, action: 'status', fetchImpl: fakeFetch(200, {
     success: true, scheduled: false, interval: 'jaar', interval_change: { naar: 'maand', switch_at: EINDE },
   }).fn });
-  assert.deepEqual(intervalStatusFromResult(goed), { known: true, interval: 'jaar', change: { naar: 'maand', switchAt: EINDE } });
+  assert.deepEqual(intervalStatusFromResult(goed), { known: true, interval: 'jaar', change: { naar: 'maand', switchAt: EINDE }, inFreePeriod: null, nextInvoiceAt: null });
 
   const kapot = await callChangePlan({ ...basisOpts, action: 'status', fetchImpl: fakeFetch(200, { success: true, scheduled: false, interval: 'week' }).fn });
   assert.deepEqual(intervalStatusFromResult(kapot), { known: false });
@@ -82,6 +83,66 @@ test('status via callChangePlan: periode alleen bij status, en een kapotte perio
   const undo = await callChangePlan({ ...basisOpts, action: 'undo', fetchImpl: fakeFetch(200, { success: true, scheduled: false, interval: 'jaar' }).fn });
   assert.equal('periode' in undo, false);
   assert.deepEqual(intervalStatusFromResult(undo), { known: false });
+});
+
+test('status: in_free_period en next_invoice_at worden gelezen; null mag', () => {
+  assert.deepEqual(
+    parseIntervalStatus({ interval: 'maand', interval_change: null, in_free_period: true, next_invoice_at: EINDE }),
+    { known: true, interval: 'maand', change: null, inFreePeriod: true, nextInvoiceAt: EINDE },
+  );
+  assert.deepEqual(
+    parseIntervalStatus({ interval: 'jaar', in_free_period: false, next_invoice_at: null }),
+    { known: true, interval: 'jaar', change: null, inFreePeriod: false, nextInvoiceAt: null },
+  );
+});
+
+test('status: verkeerd type voor in_free_period of next_invoice_at → onbekend', () => {
+  for (const d of [
+    { interval: 'maand', in_free_period: 'true' },
+    { interval: 'maand', in_free_period: 1 },
+    { interval: 'maand', next_invoice_at: 1790000000 },
+    { interval: 'maand', next_invoice_at: 'morgen' },
+  ]) {
+    assert.deepEqual(parseIntervalStatus(d), { known: false }, JSON.stringify(d));
+  }
+});
+
+const NU = new Date('2026-10-24T12:00:00Z');
+const LICENTIE = { trialEndsAt: '2026-11-15T00:00:00.000Z', periodEnd: '2026-12-01T00:00:00.000Z' };
+const SERVER_DATUM = '2026-11-07T09:00:00.000Z';
+
+test('bevestiging: velden van de server aanwezig → geen terugval op de licentie', () => {
+  // De licentie zegt "gratis periode", de server zegt van niet: de server wint.
+  const betalend = bevestigingsContext(
+    { known: true, interval: 'maand', change: null, inFreePeriod: false, nextInvoiceAt: SERVER_DATUM }, LICENTIE, NU,
+  );
+  assert.deepEqual(betalend, { inFreePeriod: false, datum: SERVER_DATUM });
+  const gratis = bevestigingsContext(
+    { known: true, interval: 'maand', change: null, inFreePeriod: true, nextInvoiceAt: SERVER_DATUM }, { trialEndsAt: null, periodEnd: null }, NU,
+  );
+  assert.deepEqual(gratis, { inFreePeriod: true, datum: SERVER_DATUM });
+  assert.equal(
+    intervalConfirmText({ plan: 'basic', naar: 'jaar', ...betalend }),
+    'Vanaf 7 november 2026 betaal je €300 per jaar excl. btw (€363 incl. btw). Tot die dag verandert er niets; intrekken kan tot dan.',
+  );
+  assert.equal(
+    intervalConfirmText({ plan: 'basic', naar: 'jaar', ...gratis }),
+    'Je gratis periode blijft tot 7 november 2026. Daarna betaal je €300 per jaar excl. btw (€363 incl. btw).',
+  );
+});
+
+test('bevestiging: velden ontbreken (oudere server) → terugval op de licentie', () => {
+  const oud = { known: true, interval: 'maand', change: null, inFreePeriod: null, nextInvoiceAt: null };
+  assert.deepEqual(bevestigingsContext(oud, LICENTIE, NU), { inFreePeriod: true, datum: LICENTIE.trialEndsAt });
+  assert.deepEqual(
+    bevestigingsContext(oud, { trialEndsAt: null, periodEnd: LICENTIE.periodEnd }, NU),
+    { inFreePeriod: false, datum: LICENTIE.periodEnd },
+  );
+  // Alleen de datum ontbreekt: gratis periode van de server, datum uit de licentie.
+  assert.deepEqual(
+    bevestigingsContext({ ...oud, inFreePeriod: false }, LICENTIE, NU),
+    { inFreePeriod: false, datum: LICENTIE.periodEnd },
+  );
 });
 
 // ── Teksten en bedragen ─────────────────────────────────────────────────────
@@ -233,7 +294,7 @@ const basis = {
   isTrial: false,
   cancelled: false,
   planStatus: { known: true, scheduled: false },
-  status: { known: true, interval: 'maand', change: null },
+  status: { known: true, interval: 'maand', change: null, inFreePeriod: false, nextInvoiceAt: null },
 };
 
 test('view: eigenaar, maandelijks, niets gepland → overstappen naar jaarlijks', () => {
@@ -279,6 +340,7 @@ test('/upgrade: kaart, bevestiging, intrekken en blokkades zijn aangesloten', ()
   assert.match(src, /setIntervalStatus\(intervalStatusFromResult\(statusResult\)\)/);
   assert.match(src, /onClick=\{\(\) => setShowIntervalModal\(true\)\}/);
   assert.match(src, /intervalConfirmText\(/);
+  assert.match(src, /bevestigingsContext\(intervalStatus, \{ trialEndsAt, periodEnd \}\)/);
   assert.match(src, /runIntervalChange\('undo'\)/);
   assert.match(src, /attemptId: intervalAttemptsRef\.current\.idVoor\(naar\)/);
   // Na elke overstapactie de stand opnieuw bij Stripe lezen.

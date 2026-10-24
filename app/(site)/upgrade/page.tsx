@@ -35,9 +35,9 @@ import {
 import {
   createIntervalAttempts,
   directGewisseldTekst,
+  bevestigingsContext,
   geplandTekst,
   huidigePeriodeTekst,
-  inGratisPeriode,
   intervalConfirmText,
   intervalView,
   intrekKnopTekst,
@@ -500,7 +500,7 @@ function UpgradeContent() {
   });
   const planWisselBlok = planWisselGeblokkeerd(intervalStatus);
   const upgradeBlok = upgradeInSubscription ? planWisselBlok : null;
-  const periodeInGratisPeriode = inGratisPeriode(trialEndsAt);
+  const periodeBevestiging = bevestigingsContext(intervalStatus, { trialEndsAt, periodEnd });
 
   const sessionToken = async (): Promise<string | null> => {
     const supabase = getSupabaseBrowser();
@@ -1163,10 +1163,10 @@ function UpgradeContent() {
           body={intervalConfirmText({
             plan: periodeView.plan,
             naar: periodeView.naar,
-            inFreePeriod: periodeInGratisPeriode,
-            // Het nieuwe bedrag gaat in aan het einde van de gratis periode,
-            // of aan het einde van de lopende betaalperiode.
-            datum: periodeInGratisPeriode ? trialEndsAt : periodEnd,
+            // Uit de server (in_free_period, next_invoice_at); alleen bij een
+            // oudere server uit de licentie.
+            inFreePeriod: periodeBevestiging.inFreePeriod,
+            datum: periodeBevestiging.datum,
           })}
           confirmLabel={periodeView.naar === 'jaar' ? 'Ja, overstappen' : 'Ja, naar maandelijks'}
           confirmColor="#2563EB"

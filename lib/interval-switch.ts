@@ -37,6 +37,10 @@ export type IntervalStatus =
       /** Null: de server gaf geen periode mee (oudere server). */
       interval: BillingInterval | null;
       change: IntervalChange | null;
+      /** Stripe-status trialing? Null: niet meegegeven (oudere server). */
+      inFreePeriod: boolean | null;
+      /** Volgende incasso (einde gratis periode of lopende periode). Null: niet meegegeven of onbekend. */
+      nextInvoiceAt: string | null;
     }
   /** Geen antwoord, of een antwoord dat we niet eenduidig kunnen lezen. */
   | { known: false };
@@ -66,7 +70,20 @@ export function parseIntervalStatus(data: Record<string, unknown>): IntervalStat
     if (!isBillingInterval(c.naar) || !leesbareDatum(c.switch_at)) return { known: false };
     change = { naar: c.naar, switchAt: c.switch_at };
   }
-  return { known: true, interval, change };
+
+  // Gratis periode en volgende incasso (status). Ontbreekt → null (de pagina
+  // valt dan terug op de licentiegegevens); een verkeerd type → onbekend.
+  let inFreePeriod: boolean | null = null;
+  if (data.in_free_period !== undefined && data.in_free_period !== null) {
+    if (typeof data.in_free_period !== 'boolean') return { known: false };
+    inFreePeriod = data.in_free_period;
+  }
+  let nextInvoiceAt: string | null = null;
+  if (data.next_invoice_at !== undefined && data.next_invoice_at !== null) {
+    if (!leesbareDatum(data.next_invoice_at)) return { known: false };
+    nextInvoiceAt = data.next_invoice_at;
+  }
+  return { known: true, interval, change, inFreePeriod, nextInvoiceAt };
 }
 
 /** De andere periode. */
@@ -168,13 +185,29 @@ export function intervalConfirmText(opts: {
 }
 
 /**
- * Zitten we in de gratis periode? De status-aanroep zegt dat niet; de
- * licentie wel (`trialEndsAt` in de toekomst). Weten we het niet, dan de
- * tekst voor betalend: die klopt ook in de gratis periode (de periode loopt
- * dan tot het einde van de gratis periode, en tot dan verandert er niets).
+ * Terugval voor een oudere server zonder `in_free_period`: de licentie
+ * (`trialEndsAt` in de toekomst). Weten we het niet, dan de tekst voor
+ * betalend: die klopt ook in de gratis periode (de periode loopt dan tot het
+ * einde van de gratis periode, en tot dan verandert er niets).
  */
 export function inGratisPeriode(trialEndsAt: string | null, now: Date = new Date()): boolean {
   return Boolean(trialEndsAt && leesbareDatum(trialEndsAt) && Date.parse(trialEndsAt) > now.getTime());
+}
+
+/**
+ * Gratis periode en datum voor de bevestiging. De server is leidend
+ * (`in_free_period`, `next_invoice_at`); alleen wat hij niet meegeeft komt
+ * uit de licentie (`trialEndsAt` / `periodEnd`).
+ */
+export function bevestigingsContext(
+  status: IntervalStatus,
+  licentie: { trialEndsAt: string | null; periodEnd: string | null },
+  now: Date = new Date(),
+): { inFreePeriod: boolean; datum: string | null } {
+  const server = status.known ? status : null;
+  const inFreePeriod = server?.inFreePeriod ?? inGratisPeriode(licentie.trialEndsAt, now);
+  const datum = server?.nextInvoiceAt ?? (inFreePeriod ? licentie.trialEndsAt : licentie.periodEnd);
+  return { inFreePeriod, datum };
 }
 
 // ── Wat de pagina toont ─────────────────────────────────────────────────────

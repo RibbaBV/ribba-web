@@ -51,7 +51,7 @@ test('undo en status: geen plan, geen attempt_id', async () => {
     // Bij status leest de pagina ook de betaalperiode; een oudere server
     // zonder die velden geeft "bekend, geen periode, niets gepland".
     const verwacht = action === 'status'
-      ? { ok: true, scheduled: false, switchAt: null, periode: { known: true, interval: null, change: null } }
+      ? { ok: true, scheduled: false, switchAt: null, periode: { known: true, interval: null, change: null, inFreePeriod: null, nextInvoiceAt: null } }
       : { ok: true, scheduled: false, switchAt: null };
     assert.deepEqual(r, verwacht);
     assert.deepEqual(calls[0].body, { school_id: SCHOOL, action });
