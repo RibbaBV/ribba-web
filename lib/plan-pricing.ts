@@ -197,27 +197,28 @@ export function intervalEenheid(interval: BillingInterval): string {
 //
 // BESLUIT J5 (Önder, okt 2026): uitsluitend Premium, uitsluitend bij jaarlijks
 // betalen, omvat de website-service — Ribba verzorgt de eigen website van de
-// rijschool. Nooit bij Basic, nooit bij Premium maandelijks.
+// rijschool. Nooit bij Basic. Bij Premium maandelijks staat hij er wél, met
+// "(bij een jaarabonnement)" erachter, zodat je ziet wat jaarlijks oplevert
+// (besluit Önder 24 okt).
 //
 // Eén plek voor de tekst. Pagina's vragen hier wat er extra bij een plan
 // hoort, in plaats van de zin zelf te typen.
 
 /** De bullet zoals hij staat waar "Jaarlijks" gekozen is. */
 export const WEBSITE_SERVICE_TEKST =
-  'Wij verzorgen je eigen website — ontwerp, (her)bouw en support';
+  'Een professionele website voor je rijschool, door ons gebouwd en onderhouden';
 
-/** Dezelfde bullet op een pagina zonder maand/jaar-keuze. */
+/** Dezelfde bullet bij maandelijks of op een pagina zonder maand/jaar-keuze. */
 export const WEBSITE_SERVICE_TEKST_STATISCH =
-  'Bij jaarlijks betalen: wij verzorgen je eigen website — ontwerp, (her)bouw en support';
+  `${WEBSITE_SERVICE_TEKST} (bij een jaarabonnement)`;
 
 /**
  * Wat er bovenop de vaste features van een plan bij komt.
  *
- * - `interval` gegeven (pagina mét keuze): alleen Premium + jaar krijgt de
- *   bullet, zonder voorvoegsel.
- * - `interval` 'statisch' (pagina zonder keuze): Premium krijgt de bullet mét
- *   "Bij jaarlijks betalen:", zodat hij nooit als onderdeel van maandelijks
- *   leest.
+ * - Premium + jaar: de bullet zoals hij is.
+ * - Premium + maand, of een pagina zonder keuze ('statisch'): de bullet met
+ *   "(bij een jaarabonnement)", zodat hij nooit als onderdeel van maandelijks
+ *   leest maar wél laat zien wat jaarlijks oplevert.
  * - Basic krijgt nooit iets.
  */
 export function planExtraFeatures(
@@ -225,8 +226,7 @@ export function planExtraFeatures(
   interval: BillingInterval | 'statisch',
 ): string[] {
   if (plan !== 'premium') return [];
-  if (interval === 'statisch') return [WEBSITE_SERVICE_TEKST_STATISCH];
-  return interval === 'jaar' ? [WEBSITE_SERVICE_TEKST] : [];
+  return interval === 'jaar' ? [WEBSITE_SERVICE_TEKST] : [WEBSITE_SERVICE_TEKST_STATISCH];
 }
 
 /** Vaste Mollie-omschrijving per plan (checkout, webhook én reconcile). */
