@@ -36,7 +36,20 @@ export async function readSchoolOwners(supabase: SupabaseClient, viewerId: strin
       const profile = await supabase.from('users').select('first_name,last_name,name')
         .eq('id', id).maybeSingle();
       if (profile.error) return { status: 'unavailable' };
-      names.push(profileName(profile.data) || 'Naam niet ingevuld');
+      const legacyName = profileName(profile.data);
+      if (legacyName) {
+        names.push(legacyName);
+        continue;
+      }
+      // Checkout-first signup keeps the name on the activated registration.
+      // Both IDs must match: a former owner or another school's registration
+      // must never supply the name. Ambiguous matches fail closed.
+      const registration = await supabase.from('pending_registrations')
+        .select('first_name,last_name')
+        .eq('school_id', schoolId).eq('auth_user_id', id)
+        .eq('status', 'activated').maybeSingle();
+      if (registration.error) return { status: 'unavailable' };
+      names.push(profileName(registration.data) || 'Naam niet ingevuld');
     }
     return { status: 'ready', names };
   } catch { return allowed ? { status: 'unavailable' } : null; }

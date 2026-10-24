@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readSchoolOwners } from '../lib/support-school-owner.ts';
 
-function client({ permission = true, permissionError = null, metadata = { first_name: ' Ada ', last_name: ' Lovelace ' }, profile = null, authError = null, owners = [{ user_id: 'u1' }] } = {}) {
+function client({ permission = true, permissionError = null, metadata = { first_name: ' Ada ', last_name: ' Lovelace ' }, profile = null, registration = null, registrationError = null, authError = null, owners = [{ user_id: 'u1' }] } = {}) {
   const calls = [];
   return {
     calls,
@@ -19,7 +19,9 @@ function client({ permission = true, permissionError = null, metadata = { first_
           calls.push([key, value]);
           return key === 'school_role' ? Promise.resolve({ data: owners, error: null }) : this;
         },
-        maybeSingle: async () => ({ data: profile, error: null }),
+        maybeSingle: async () => table === 'pending_registrations'
+          ? { data: registration, error: registrationError }
+          : { data: profile, error: null },
       };
     },
   };
@@ -81,4 +83,25 @@ test('school without owners does not query Auth', async () => {
   const db = client({ owners: [] });
   assert.deepEqual(await readSchoolOwners(db, 'v', 's'), { status: 'ready', names: [] });
   assert.equal(db.calls.filter(c => Array.isArray(c) && c[0] === 'auth').length, 0);
+});
+
+
+test('checkout-first signup name is read only for matching school, owner and activated status', async () => {
+  const db = client({ metadata: { email_verified: true }, profile: { name: '' }, registration: { first_name: 'Test', last_name: 'Eigenaar' } });
+  assert.deepEqual(await readSchoolOwners(db, 'v', 'school'), { status: 'ready', names: ['Test Eigenaar'] });
+  const query = db.calls.slice(db.calls.indexOf('pending_registrations'));
+  assert.deepEqual(query, ['pending_registrations', 'first_name,last_name', ['school_id', 'school'], ['auth_user_id', 'u1'], ['status', 'activated']]);
+});
+
+test('an existing profile name does not read historical registration names', async () => {
+  for (const options of [{}, { metadata: {}, profile: { name: 'Current name' } }]) {
+    const db = client(options);
+    await readSchoolOwners(db, 'v', 's');
+    assert.ok(!db.calls.includes('pending_registrations'));
+  }
+});
+
+test('ambiguous or failed registration lookup does not return a guessed name', async () => {
+  const db = client({ metadata: {}, registration: { first_name: 'Wrong' }, registrationError: Error('multiple rows') });
+  assert.deepEqual(await readSchoolOwners(db, 'v', 's'), { status: 'unavailable' });
 });
