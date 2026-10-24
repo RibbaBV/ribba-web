@@ -21,8 +21,10 @@ import {
 import { canManageSubscriptionFrom } from '@/lib/subscription-access';
 import {
   callChangePlan,
+  callIntervalChange,
   confirmUpgrade,
   formatSwitchDate,
+  intervalStatusFromResult,
   planSwitchView,
   previewUpgrade,
   statusFromResult,
@@ -30,6 +32,20 @@ import {
   type PlanSwitchStatus,
   type UpgradePreview,
 } from '@/lib/plan-switch';
+import {
+  createIntervalAttempts,
+  directGewisseldTekst,
+  bevestigingsContext,
+  geplandTekst,
+  huidigePeriodeTekst,
+  intervalConfirmText,
+  intervalView,
+  intrekKnopTekst,
+  overstapKnopTekst,
+  overstapTitel,
+  planWisselGeblokkeerd,
+  type IntervalStatus,
+} from '@/lib/interval-switch';
 import Link from 'next/link';
 import { naOpzeggenTekst, OPZEGGEN_TEKST } from '@/lib/offboarding';
 
@@ -113,11 +129,21 @@ function UpgradeContent() {
   const upgradeAttemptRef = useRef<string | null>(null);
 
   // Maandelijks of jaarlijks (J2). Alleen te kiezen bij een NIEUW abonnement
-  // via Checkout (proefperiode of geen plan). Wisselen tussen maand en jaar
-  // voor een betalende school bestaat niet (buiten scope).
+  // via Checkout (proefperiode of geen plan). Een lopend abonnement wisselt
+  // via de kaart "Betaalperiode" (F4, hieronder).
   const [periode, setPeriode] = useState<BillingInterval>('maand');
   // Betaalperiode van een lopend abonnement (uit /api/current-plan); null = onbekend.
   const [huidigInterval, setHuidigInterval] = useState<BillingInterval | null>(null);
+
+  // Zelf overstappen tussen maandelijks en jaarlijks (F4). De stand komt uit
+  // dezelfde status-aanroep als de wissel naar Basic, live uit Stripe. Start
+  // op "onbekend" → geen kaart tot Stripe antwoordt.
+  const [intervalStatus, setIntervalStatus] = useState<IntervalStatus>({ known: false });
+  const [intervalBusy, setIntervalBusy] = useState<'schedule' | 'undo' | null>(null);
+  const [showIntervalModal, setShowIntervalModal] = useState(false);
+  // Na een directe wissel in de gratis periode: de bevestiging met de datum van de server.
+  const [intervalDirectTekst, setIntervalDirectTekst] = useState<string | null>(null);
+  const intervalAttemptsRef = useRef(createIntervalAttempts());
 
   // Auth + resolve school_id (from URL or via Supabase session)
   useEffect(() => {
@@ -201,6 +227,7 @@ function UpgradeContent() {
             action: 'status',
           });
           setSwitchStatus(statusFromResult(statusResult));
+          setIntervalStatus(intervalStatusFromResult(statusResult));
         }
 
         if (usageRes.ok) {
@@ -387,6 +414,7 @@ function UpgradeContent() {
       // verdwijnt de knop.
       const herlezen = await callChangePlan({ supabaseUrl, accessToken: token, schoolId, action: 'status' });
       setSwitchStatus(statusFromResult(herlezen));
+      setIntervalStatus(intervalStatusFromResult(herlezen));
       setSwitching(null);
       return;
     }
@@ -397,6 +425,53 @@ function UpgradeContent() {
         : { known: true, scheduled: false },
     );
     setSwitching(null);
+  };
+
+  // Stand opnieuw bij Stripe lezen (na elke overstapactie, gelukt of niet).
+  // Lukt dat niet, dan is hij onbekend en verdwijnen de knoppen.
+  const herlaadStatus = async (token: string) => {
+    if (!schoolId) return;
+    const herlezen = await callChangePlan({ supabaseUrl, accessToken: token, schoolId, action: 'status' });
+    setSwitchStatus(statusFromResult(herlezen));
+    setIntervalStatus(intervalStatusFromResult(herlezen));
+  };
+
+  const runIntervalChange = async (action: 'schedule' | 'undo') => {
+    if (!schoolId || intervalBusy || periodeView.kind === 'none') return;
+    const naar = periodeView.kind === 'offer' ? periodeView.naar : null;
+    if (action === 'schedule' && !naar) return;
+    setShowIntervalModal(false);
+    setIntervalBusy(action);
+    setError(null);
+    setIntervalDirectTekst(null);
+    const token = await sessionToken();
+    if (!token) return;
+
+    const result = action === 'schedule' && naar
+      ? await callIntervalChange({
+          supabaseUrl,
+          accessToken: token,
+          schoolId,
+          action: 'interval_schedule',
+          naar,
+          // Eén id per bevestigde poging; een netwerkfout hervat dezelfde.
+          attemptId: intervalAttemptsRef.current.idVoor(naar),
+        })
+      : await callIntervalChange({ supabaseUrl, accessToken: token, schoolId, action: 'interval_undo' });
+
+    if (!result.ok) {
+      if (result.kind === 'definitive') intervalAttemptsRef.current.afsluiten();
+      setError(result.error);
+    } else {
+      intervalAttemptsRef.current.afsluiten();
+      if (result.uitkomst === 'direct') {
+        setHuidigInterval(result.interval);
+        setIntervalDirectTekst(directGewisseldTekst(result.interval, result.nextInvoiceAt));
+      }
+    }
+    // Ook na een fout: de uitkomst kan onzeker zijn (antwoord kwijt).
+    await herlaadStatus(token);
+    setIntervalBusy(null);
   };
 
   const switchView = planSwitchView({
@@ -411,6 +486,21 @@ function UpgradeContent() {
   // gaat binnen dat abonnement, met verrekening. Zonder Stripe-abonnement blijft
   // het de checkout — die weigert sinds 1 okt een tweede abonnement.
   const upgradeInSubscription = currentPlan === 'basic' && !isTrial && switchStatus.known;
+
+  // Betaalperiode-kaart, en wat elkaar uitsluit: een geplande periodewissel
+  // blokkeert planwissels (naar Basic, upgrade binnen het abonnement), en een
+  // geplande wissel naar Basic blokkeert de periodewissel.
+  const periodeView = intervalView({
+    canManageSubscription,
+    currentPlan,
+    isTrial,
+    cancelled: Boolean(cancelledAt || cancelSuccess),
+    planStatus: switchStatus,
+    status: intervalStatus,
+  });
+  const planWisselBlok = planWisselGeblokkeerd(intervalStatus);
+  const upgradeBlok = upgradeInSubscription ? planWisselBlok : null;
+  const periodeBevestiging = bevestigingsContext(intervalStatus, { trialEndsAt, periodEnd });
 
   const sessionToken = async (): Promise<string | null> => {
     const supabase = getSupabaseBrowser();
@@ -827,15 +917,15 @@ function UpgradeContent() {
                 <button
                   className="btn-secondary"
                   onClick={() => setShowSwitchModal(true)}
-                  disabled={switching !== null || basicBlockedReason !== null}
-                  title={basicBlockedReason ?? undefined}
-                  style={basicBlockedReason ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                  disabled={switching !== null || basicBlockedReason !== null || planWisselBlok !== null}
+                  title={planWisselBlok ?? basicBlockedReason ?? undefined}
+                  style={basicBlockedReason || planWisselBlok ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                 >
                   {switching === 'schedule' ? 'Bezig...' : 'Na deze periode naar Basic'}
                 </button>
-                {basicBlockedReason && (
+                {(planWisselBlok ?? basicBlockedReason) && (
                   <p style={{ fontSize: 12, color: '#B45309', margin: 0, lineHeight: 1.4 }}>
-                    {basicBlockedReason}
+                    {planWisselBlok ?? basicBlockedReason}
                   </p>
                 )}
               </div>
@@ -882,19 +972,92 @@ function UpgradeContent() {
             {isCurrentPlan('premium') ? (
               <div className="btn-current btn-current-premium">Huidig abonnement</div>
             ) : canUpgradeTo('premium') ? (
-              <button
-                className="btn-primary"
-                style={{ marginTop: 'auto' }}
-                onClick={() => (upgradeInSubscription ? startUpgrade() : handleCheckout('premium'))}
-                disabled={loading !== null || upgrading !== null}
-              >
-                {loading === 'premium' || upgrading === 'preview' ? 'Bezig...' : (currentPlan === 'basic' ? 'Upgrade naar Premium' : 'Kies Premium')}
-              </button>
+              <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  className="btn-primary"
+                  onClick={() => (upgradeInSubscription ? startUpgrade() : handleCheckout('premium'))}
+                  disabled={loading !== null || upgrading !== null || upgradeBlok !== null}
+                  title={upgradeBlok ?? undefined}
+                  style={upgradeBlok ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                >
+                  {loading === 'premium' || upgrading === 'preview' ? 'Bezig...' : (currentPlan === 'basic' ? 'Upgrade naar Premium' : 'Kies Premium')}
+                </button>
+                {upgradeBlok && (
+                  <p style={{ fontSize: 12, color: '#B45309', margin: 0, lineHeight: 1.4 }}>
+                    {upgradeBlok}
+                  </p>
+                )}
+              </div>
             ) : (
               <div style={{ marginTop: 'auto' }} />
             )}
           </div>
         </div>
+
+        {/* Betaalperiode (F4): zelf overstappen tussen maandelijks en
+            jaarlijks. Alleen voor de eigenaar met een Stripe-abonnement; de
+            stand en de datum komen van Stripe. */}
+        {periodeView.kind !== 'none' && (
+          <div
+            style={{
+              maxWidth: 780,
+              margin: '32px auto 0',
+              padding: '16px 20px',
+              background: '#FFFFFF',
+              border: '1px solid #E7E5E4',
+              borderRadius: 14,
+              color: '#44403C',
+              fontSize: 14,
+              lineHeight: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div>
+              <strong style={{ display: 'block', marginBottom: 4, color: '#1C1917' }}>Betaalperiode</strong>
+              {huidigePeriodeTekst(periodeView.plan, periodeView.huidig)}
+              {periodeView.kind === 'scheduled' && (
+                <div style={{ marginTop: 4 }}><strong>{geplandTekst(periodeView.change)}</strong></div>
+              )}
+              {intervalDirectTekst && (
+                <div style={{ marginTop: 4, color: '#14532D' }}>{intervalDirectTekst}</div>
+              )}
+              {periodeView.kind === 'offer' && periodeView.geblokkeerd && (
+                <div style={{ marginTop: 4, fontSize: 12, color: '#B45309' }}>{periodeView.geblokkeerd}</div>
+              )}
+            </div>
+            {periodeView.kind === 'scheduled' ? (
+              <button
+                type="button"
+                onClick={() => runIntervalChange('undo')}
+                disabled={intervalBusy !== null}
+                className="btn-secondary"
+                style={{ width: 'auto', padding: '10px 16px', opacity: intervalBusy ? 0.5 : 1 }}
+              >
+                {intervalBusy === 'undo' ? 'Bezig...' : intrekKnopTekst(periodeView.change)}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowIntervalModal(true)}
+                disabled={intervalBusy !== null || periodeView.geblokkeerd !== null}
+                title={periodeView.geblokkeerd ?? undefined}
+                className="btn-secondary"
+                style={{
+                  width: 'auto',
+                  padding: '10px 16px',
+                  opacity: intervalBusy || periodeView.geblokkeerd ? 0.5 : 1,
+                  cursor: periodeView.geblokkeerd ? 'not-allowed' : undefined,
+                }}
+              >
+                {intervalBusy === 'schedule' ? 'Bezig...' : overstapKnopTekst(periodeView.naar)}
+              </button>
+            )}
+          </div>
+        )}
         </>
         )}
 
@@ -991,6 +1154,24 @@ function UpgradeContent() {
           confirmColor="#2563EB"
           onCancel={() => { if (!upgrading) setUpgradePreview(null); }}
           onConfirm={confirmUpgradeNow}
+        />
+      )}
+
+      {showIntervalModal && periodeView.kind === 'offer' && (
+        <ConfirmModal
+          title={overstapTitel(periodeView.naar)}
+          body={intervalConfirmText({
+            plan: periodeView.plan,
+            naar: periodeView.naar,
+            // Uit de server (in_free_period, next_invoice_at); alleen bij een
+            // oudere server uit de licentie.
+            inFreePeriod: periodeBevestiging.inFreePeriod,
+            datum: periodeBevestiging.datum,
+          })}
+          confirmLabel={periodeView.naar === 'jaar' ? 'Ja, overstappen' : 'Ja, naar maandelijks'}
+          confirmColor="#2563EB"
+          onCancel={() => setShowIntervalModal(false)}
+          onConfirm={() => runIntervalChange('schedule')}
         />
       )}
 
