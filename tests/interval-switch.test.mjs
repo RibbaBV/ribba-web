@@ -157,14 +157,14 @@ test('bevestiging maand → jaar (betalend), Basic: €300 / €363', () => {
 test('bevestiging maand → jaar (betalend), Premium: €540 / €653,40 en de website-service', () => {
   assert.equal(
     intervalConfirmText({ plan: 'premium', naar: 'jaar', inFreePeriod: false, datum: EINDE }),
-    'Vanaf 1 november 2026 betaal je €540 per jaar excl. btw (€653,40 incl. btw). Tot die dag verandert er niets; intrekken kan tot dan. Daarbij: wij verzorgen je eigen website — ontwerp, (her)bouw en support.',
+    'Vanaf 1 november 2026 betaal je €540 per jaar excl. btw (€653,40 incl. btw). Tot die dag verandert er niets; intrekken kan tot dan. Daarbij: een professionele website voor je rijschool, door ons gebouwd en onderhouden.',
   );
 });
 
 test('bevestiging jaar → maand: jaar loopt door, geen geld terug, €45 / €54,45', () => {
   assert.equal(
     intervalConfirmText({ plan: 'premium', naar: 'maand', inFreePeriod: false, datum: EINDE }),
-    'Je jaar loopt door tot 1 november 2026. Daarna betaal je €45 per maand excl. btw (€54,45 incl. btw). Geld terug is er niet. De website-service hoort alleen bij jaarlijks betalen.',
+    'Je jaar loopt door tot 1 november 2026. Daarna betaal je €45 per maand excl. btw (€54,45 incl. btw). Geld terug is er niet. De website hoort alleen bij een jaarabonnement.',
   );
   assert.equal(
     intervalConfirmText({ plan: 'basic', naar: 'maand', inFreePeriod: false, datum: EINDE }),
@@ -175,7 +175,7 @@ test('bevestiging jaar → maand: jaar loopt door, geen geld terug, €45 / €5
 test('bevestiging in de gratis periode: de gratis periode blijft', () => {
   assert.equal(
     intervalConfirmText({ plan: 'premium', naar: 'jaar', inFreePeriod: true, datum: EINDE }),
-    'Je gratis periode blijft tot 1 november 2026. Daarna betaal je €540 per jaar excl. btw (€653,40 incl. btw). Daarbij: wij verzorgen je eigen website — ontwerp, (her)bouw en support.',
+    'Je gratis periode blijft tot 1 november 2026. Daarna betaal je €540 per jaar excl. btw (€653,40 incl. btw). Daarbij: een professionele website voor je rijschool, door ons gebouwd en onderhouden.',
   );
   assert.equal(
     intervalConfirmText({ plan: 'basic', naar: 'maand', inFreePeriod: true, datum: EINDE }),

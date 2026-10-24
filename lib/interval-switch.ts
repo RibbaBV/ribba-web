@@ -167,9 +167,11 @@ export function intervalConfirmText(opts: {
 
   // Wat er bij Premium bij komt of weggaat (J5: website-service alleen bij
   // Premium jaarlijks). De zin zelf komt uit plan-pricing.
-  const extra = planExtraFeatures(opts.plan, opts.naar).map((t) => ` Daarbij: ${metKleineLetter(t)}.`).join('');
+  const extra = opts.naar === 'jaar'
+    ? planExtraFeatures(opts.plan, 'jaar').map((t) => ` Daarbij: ${metKleineLetter(t)}.`).join('')
+    : '';
   const verlies = opts.plan === 'premium' && opts.naar === 'maand'
-    ? ' De website-service hoort alleen bij jaarlijks betalen.'
+    ? ' De website hoort alleen bij een jaarabonnement.'
     : '';
 
   if (opts.inFreePeriod) {

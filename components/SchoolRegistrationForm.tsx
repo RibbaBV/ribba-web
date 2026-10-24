@@ -660,7 +660,7 @@ export default function SchoolRegistrationForm() {
                   <strong style={{ display: 'block' }}>Ribba Premium</strong>
 
                   {/* J5: bij Premium jaarlijks verzorgt Ribba de eigen website.
-                      Alleen zichtbaar bij een jaaraanbod van de server. */}
+                      Bij maandelijks staat hij er met "(bij een jaarabonnement)". */}
                   {planExtraFeatures('premium', aanbod.interval).map((extra) => (
                     <span key={extra} style={{ display: 'block', fontSize: 14, color: '#1D4ED8', fontWeight: 600 }}>
                       {extra}

@@ -139,12 +139,13 @@ test('J5: Basic krijgt de website-service nooit, in geen enkele weergave', () =>
   for (const i of ['maand', 'jaar', 'statisch']) assert.deepEqual(planExtraFeatures('basic', i), []);
 });
 
-test('J5: Premium alleen bij jaarlijks; statisch altijd met het voorvoegsel "Bij jaarlijks betalen:"', () => {
-  assert.deepEqual(planExtraFeatures('premium', 'maand'), []);
+test('J5: Premium jaarlijks krijgt de website; bij maandelijks zichtbaar met "(bij een jaarabonnement)"', () => {
+  assert.equal(WEBSITE_SERVICE_TEKST, 'Een professionele website voor je rijschool, door ons gebouwd en onderhouden');
+  assert.equal(WEBSITE_SERVICE_TEKST_STATISCH, `${WEBSITE_SERVICE_TEKST} (bij een jaarabonnement)`);
   assert.deepEqual(planExtraFeatures('premium', 'jaar'), [WEBSITE_SERVICE_TEKST]);
+  assert.deepEqual(planExtraFeatures('premium', 'maand'), [WEBSITE_SERVICE_TEKST_STATISCH]);
   assert.deepEqual(planExtraFeatures('premium', 'statisch'), [WEBSITE_SERVICE_TEKST_STATISCH]);
-  assert.match(WEBSITE_SERVICE_TEKST_STATISCH, /^Bij jaarlijks betalen: /);
-  assert.match(WEBSITE_SERVICE_TEKST, /eigen website/);
+  for (const i of ['maand', 'jaar', 'statisch']) assert.deepEqual(planExtraFeatures('basic', i), []);
 });
 
 test('J5: de pagina\'s gebruiken de gedeelde bron, geen eigen zin', async () => {

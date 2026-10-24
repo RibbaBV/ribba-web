@@ -409,7 +409,7 @@ export default function ProPage() {
                 </div>
                 <div className="plan-features">
                   {/* J5: website-service hoort bij Premium jaarlijks — op deze
-                      pagina zonder keuze mét "Bij jaarlijks betalen:". */}
+                      pagina zonder keuze mét "(bij een jaarabonnement)". */}
                   {[...PREMIUM_FEATURES, ...planExtraFeatures('premium', 'statisch')].map((f) => (
                     <div key={f} className="plan-feature-row">
                       <CheckIcon color="#2563EB" />
