@@ -9,6 +9,12 @@ import {
   isEmailAlBekendConflict,
   emailAlBekendAntwoord,
 } from '@/lib/students-registratie-fout';
+import {
+  aanvullingVoorBestaandeLeerling,
+  statusLabel,
+  VELDLABELS,
+  type Verschil,
+} from '@/lib/register-bestaande-leerling';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -107,7 +113,7 @@ export async function POST(request: NextRequest) {
     // Check of email al bekend is bij deze rijschool
     const { data: existing } = await supabase
       .from('students')
-      .select('id, user_id, status')
+      .select('id, user_id, status, first_name, last_name, phone, address, postal_code, city, license_type, date_of_birth')
       .eq('email', email.trim().toLowerCase())
       .eq('drivingschool_id', drivingschool_id)
       .limit(1);
@@ -144,8 +150,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Als er al een placeholder-student bestaat (zelfde email, geen auth_user) →
-    // verrijk die rij in plaats van een duplicaat aan te maken.
     const studentData = {
       first_name: first_name.trim(),
       last_name: last_name.trim(),
@@ -161,11 +165,22 @@ export async function POST(request: NextRequest) {
     };
 
     let studentId: string;
+    // Bestaat er al een rij die de rijschool aanmaakte (zelfde e-mail, nog geen
+    // account), dan vult het formulier alleen lege velden aan en laat het de
+    // status staan. Afwijkingen gaan naar de school. Zie
+    // lib/register-bestaande-leerling.ts (SEC003).
+    let verschillen: Verschil[] = [];
+    const status = existingStudent ? existingStudent.status : studentData.status;
     if (existingStudent) {
-      const { error: updateError } = await supabase
-        .from('students')
-        .update(studentData)
-        .eq('id', existingStudent.id);
+      const uitkomst = aanvullingVoorBestaandeLeerling(existingStudent, studentData);
+      verschillen = uitkomst.verschillen;
+      const { error: updateError } = Object.keys(uitkomst.aanvulling).length
+        ? await supabase
+            .from('students')
+            .update(uitkomst.aanvulling)
+            .eq('id', existingStudent.id)
+            .is('user_id', null)
+        : { error: null };
       if (updateError) {
         console.error('Update error:', updateError);
         return NextResponse.json(
@@ -260,7 +275,9 @@ export async function POST(request: NextRequest) {
           <div style="margin-bottom: 24px;">${ribbaLogoHtml()}</div>
           <h1 style="font-size: 24px; font-weight: 800; color: #1e293b; margin-bottom: 16px;">Nieuwe inschrijving</h1>
           <p style="color: #64748b; line-height: 1.6; font-size: 15px;">
-            Er is een nieuwe leerling aangemeld via de website.
+            ${existingStudent
+              ? 'Een leerling die al in je leerlingenlijst stond, heeft het inschrijfformulier op de website ingevuld. Lege velden zijn aangevuld; wat je al had ingevuld en de status zijn niet veranderd.'
+              : 'Er is een nieuwe leerling aangemeld via de website.'}
           </p>
           <div style="margin-top: 24px; padding: 16px; background: #f0fdfa; border-radius: 12px;">
             <p style="font-size: 13px; color: #64748b; margin: 0;">
@@ -270,9 +287,23 @@ export async function POST(request: NextRequest) {
               <strong>Adres:</strong> ${escapeHtml(address)}, ${escapeHtml(postal_code)} ${escapeHtml(city)}<br>
               <strong>Geboortedatum:</strong> ${escapeHtml(date_of_birth)}<br>
               <strong>Rijbewijs:</strong> ${escapeHtml(license_type)}<br>
-              <strong>Status:</strong> Wachtlijst
+              <strong>Status:</strong> ${escapeHtml(statusLabel(status))}
             </p>
           </div>
+          ${verschillen.length
+            ? `<div style="margin-top: 16px; padding: 16px; background: #fffbeb; border-radius: 12px;">
+            <p style="font-size: 13px; color: #92400e; margin: 0 0 8px 0;"><strong>Anders ingevuld dan bij jou bekend (niet overgenomen):</strong></p>
+            <p style="font-size: 13px; color: #64748b; margin: 0;">
+              ${verschillen
+                .map(
+                  (v) =>
+                    `<strong>${VELDLABELS[v.veld]}:</strong> bij jou ${escapeHtml(v.bestaand)}, ingevuld ${escapeHtml(v.ingevuld)}`,
+                )
+                .join('<br>')}
+            </p>
+            <p style="font-size: 13px; color: #64748b; margin: 8px 0 0 0;">Klopt het nieuwe gegeven? Pas het dan aan in de Ribba app. Ken je deze aanmelding niet, neem dan contact op met de leerling.</p>
+          </div>`
+            : ''}
           <p style="color: #64748b; font-size: 14px; margin-top: 24px;">
             Bekijk en beheer deze inschrijving in de Ribba app.
           </p>
