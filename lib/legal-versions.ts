@@ -25,8 +25,8 @@
  */
 export const LEGAL_VERSIONS = {
   terms: '2026-07-v1',   // ribba.app/voorwaarden — herziening 24 juli 2026
-  privacy: '2026-10-v1', // ribba.nl/privacybeleid — bewaartermijnen en opzeggen/verwijderen, 7 oktober 2026
-  dpa: '2026-10-v1',     // art. 9.3 en 11 (export, verwijdering, termijnen), 7 oktober 2026
+  privacy: '2026-10-v2', // ribba.nl/privacybeleid — opmaken van ingesproken lesnotities via OpenRouter, 31 oktober 2026
+  dpa: '2026-10-v2',     // art. 8.2: OpenRouter ook voor het opmaken van ingesproken lesnotities, 31 oktober 2026
 } as const;
 
 export type LegalDocumentType = keyof typeof LEGAL_VERSIONS;

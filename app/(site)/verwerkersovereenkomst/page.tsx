@@ -105,7 +105,7 @@ export default function VerwerkersovereenkomstPage() {
       </Link>
 
       <h1 style={styles.h1}>Verwerkersovereenkomst — Ribba Rijschool Planner</h1>
-      <p style={styles.updated}>Versie: {LEGAL_VERSIONS.dpa} · Laatst bijgewerkt: 7 oktober 2026</p>
+      <p style={styles.updated}>Versie: {LEGAL_VERSIONS.dpa} · Laatst bijgewerkt: 31 oktober 2026</p>
       <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: 16, marginBottom: 32, fontSize: 14, color: '#1E40AF' }}>
         Deze verwerkersovereenkomst geldt voor <strong>Ribba Rijschool Planner</strong> (de rijschoolsoftware/iOS-app voor rijscholen).
       </div>
@@ -387,10 +387,13 @@ export default function VerwerkersovereenkomstPage() {
           <tr>
             <td style={styles.td}>OpenRouter, Inc.</td>
             <td style={styles.td}>
-              Verwerking van vragen aan de Ribba Assistent
+              Verwerking van vragen aan de Ribba Assistent, en het opmaken van
+              ingesproken lesnotities tot korte punten: alleen de ingesproken
+              tekst, zonder naam of andere gegevens uit de app, en uitsluitend
+              via aanbieders die de tekst niet bewaren en er niet op trainen
             </td>
             <td style={styles.td}>
-              VS (gecertificeerd onder EU-VS Data Privacy Framework)
+              VS (standaardcontractbepalingen, module 2)
             </td>
           </tr>
         </tbody>
