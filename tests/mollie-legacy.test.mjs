@@ -69,7 +69,8 @@ test('de dode reconcile-cron is uit vercel.json, de levende crons staan er nog',
     paden.includes('/api/cron/ribba-ambassadeur-payouts'),
     'ribba-ambassadeur-payouts moet blijven draaien',
   );
-  assert.equal(paden.length, 3);
+  assert.ok(paden.includes('/api/cron/owner-learners'));
+  assert.equal(paden.length, 4);
 });
 
 test('opzeggen is puur Stripe geworden', () => {

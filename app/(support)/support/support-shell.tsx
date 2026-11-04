@@ -64,6 +64,7 @@ export function SupportFrame({ owner, path, dirty, children }: { owner: boolean;
         <nav className={styles.nav} aria-label="Beheer">
           <Link href="/support/dashboard" aria-current={path === '/support/dashboard' ? 'page' : undefined}>Overzicht</Link>
           <Link href="/support/dashboard/journey" aria-current={path.startsWith('/support/dashboard/journey') ? 'page' : undefined}>Klantreis en support</Link>
+          <Link href="/support/dashboard/learners" aria-current={path.startsWith('/support/dashboard/learners') ? 'page' : undefined}>Leerlingen</Link>
           <Link href="/support" aria-current={!path.startsWith('/support/dashboard') ? 'page' : undefined}>Rijscholen</Link>
         </nav>
         <span className={styles.owner}>Alleen eigenaar</span>

@@ -51,3 +51,12 @@ test('AI cannot invent a support issue when no support observation exists',async
  t.mock.method(globalThis,'fetch',async()=>({ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({suggestions:[{...valid.suggestions[0],evidence:'support'}]})}]}]})}));
  await assert.rejects(generateGrowthInsights(data,'test','test'));
 });
+
+test('AI learner suggestions require actual learner attention evidence',async(t)=>{
+ t.mock.method(globalThis,'fetch',async()=>({ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({suggestions:[{...valid.suggestions[0],evidence:'learners'}]})}]}]})}));
+ await assert.rejects(generateGrowthInsights(data,'test','test'));
+ const learners={captured_at:new Date().toISOString(),definition_version:1,metrics:{accounts:2,new_30:1,without_active_school:2,no_school:1,waitlist:1,never_signed_in:0,incomplete_without_school:0}};
+ await assert.rejects(generateGrowthInsights({...data,learners},'test','test'));
+ learners.metrics.never_signed_in=1;
+ assert.equal((await generateGrowthInsights({...data,learners},'test','test')).suggestions[0].evidence,'learners');
+});

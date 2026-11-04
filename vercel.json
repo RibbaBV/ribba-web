@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/ribba-ambassadeur-payouts",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/owner-learners",
+      "schedule": "0 8 * * *"
     }
   ]
 }

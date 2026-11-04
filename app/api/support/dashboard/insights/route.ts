@@ -17,6 +17,8 @@ export async function POST(req:NextRequest) {
   // Add only allowlisted aggregates to the provider; school timeline stays private.
   const journey=await supabase.rpc('owner_school_journey',{p_actor:user.id,p_school:null});
   if(!journey.error&&journey.data?.status==='ready')data.journey=journey.data;
+  const learners=await supabase.rpc('owner_learner_summary',{p_actor:user.id});
+  if(!learners.error&&learners.data?.metrics)data.learners=learners.data;
   const {data:run,error:claimError}=await supabase.rpc('claim_growth_ai',{p_actor:user.id,p_days:days,p_snapshot_at:data.captured_at,p_model:model});
   if(claimError) throw new SupportRequestError('AI-voorstellen zijn tijdelijk niet beschikbaar.',503);
   if(!run) throw new SupportRequestError('Er kan één analyse per 10 minuten draaien, maximaal vier per 24 uur. Probeer later opnieuw.',429);
