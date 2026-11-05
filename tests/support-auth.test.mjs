@@ -479,3 +479,33 @@ test('missing workflow migration preserves support data and explicitly marks una
  const r=await journeyGET(req(`Bearer ${token('aal2')}`,'https://mijn.ribba.app/api/support/dashboard/journey'));
  assert.equal(r.status,200);const body=r.body;assert.deepEqual(body.cases,['existing']);assert.deepEqual(body.workflows,{status:'unavailable'});
 });
+
+const {GET:learnersGET,POST:learnersPOST}=await import('../app/api/support/dashboard/learners/route.ts');
+const learnersRequest=(input,authorization=`Bearer ${token('aal2')}`)=>({...req(authorization,'https://mijn.ribba.app/api/support/dashboard/learners'),json:async()=>input});
+const learnerInput={filter:'all',query:'private@example.test',page:0,reason:'Registratieproblemen onderzoeken'};
+for(const [label,config,status] of [
+ ['non-owner',{rpc:{is_platform_owner:{data:false,error:null}}},403],
+ ['owner lookup error',{rpc:{is_platform_owner:{data:null,error:{message:'error'}}}},503],
+ ['audit failure',{logError:'broken',rpc:{is_platform_owner:{data:true,error:null}}},503],
+])test(`learners ${label} cannot read summary or identities`,async()=>{
+ for(const route of [learnersGET,learnersPOST]){
+  currentClient=makeClient(config);const res=await route(learnersRequest(learnerInput));assert.equal(res.status,status);
+  assert.ok(!currentClient.rpcCalls.some(c=>['owner_learner_summary','owner_learner_list'].includes(c.naam)));
+ }
+});
+test('learner PII requires reason and audited level 2, only server identity is sent to DB',async()=>{
+ currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_learner_list:{data:{rows:[],total:0},error:null}}});
+ let res=await learnersPOST(learnersRequest({...learnerInput,reason:''}));assert.equal(res.status,400);
+ assert.ok(!currentClient.rpcCalls.some(c=>c.naam==='owner_learner_list'));
+ res=await learnersPOST(learnersRequest({...learnerInput,p_actor:'forged'}));assert.equal(res.status,200);
+ const call=currentClient.rpcCalls.find(c=>c.naam==='owner_learner_list');assert.equal(call.args.p_actor,USER.id);
+ const log=currentClient.logs.find(l=>l.result==='ok');assert.equal(log.level,2);assert.equal(log.reason,learnerInput.reason);
+ assert.ok(!JSON.stringify(currentClient.logs).includes('private@example.test'));
+ assert.match(res.headers.get('cache-control'),/no-store/);
+});
+test('learner endpoint refuses missing MFA and anonymous requests',async()=>{
+ for(const [auth,status] of [[null,401],[`Bearer ${token('aal1')}`,403],[`Bearer ${token('aal2',{amr:[{method:'totp',timestamp:0}]})}`,403]]){
+  currentClient=makeClient();const res=await learnersPOST(learnersRequest(learnerInput,auth));assert.equal(res.status,status);
+  assert.ok(!currentClient.rpcCalls.some(c=>c.naam==='owner_learner_list'));
+ }
+});

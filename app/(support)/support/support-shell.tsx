@@ -48,6 +48,7 @@ export default function SupportShell({ children }: { children: React.ReactNode }
   </NavigationContext.Provider>;
 }
 
+/** Render shared support navigation, exposing owner dashboard links only for the verified owner. */
 export function SupportFrame({ owner, path, dirty, children }: { owner: boolean; path: string; dirty: boolean; children: React.ReactNode }) {
   return (
     <div className={owner ? styles.shell : undefined} onClickCapture={event => {
@@ -64,6 +65,7 @@ export function SupportFrame({ owner, path, dirty, children }: { owner: boolean;
         <nav className={styles.nav} aria-label="Beheer">
           <Link href="/support/dashboard" aria-current={path === '/support/dashboard' ? 'page' : undefined}>Overzicht</Link>
           <Link href="/support/dashboard/journey" aria-current={path.startsWith('/support/dashboard/journey') ? 'page' : undefined}>Klantreis en support</Link>
+          <Link href="/support/dashboard/learners" aria-current={path.startsWith('/support/dashboard/learners') ? 'page' : undefined}>Leerlingen</Link>
           <Link href="/support" aria-current={!path.startsWith('/support/dashboard') ? 'page' : undefined}>Rijscholen</Link>
         </nav>
         <span className={styles.owner}>Alleen eigenaar</span>

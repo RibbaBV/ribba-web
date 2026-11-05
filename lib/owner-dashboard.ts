@@ -1,15 +1,17 @@
+import type {LearnerSummary} from './owner-learners';
 import type {JourneyData} from './owner-journey';
 export type AttentionReason = 'no_lesson_type' | 'no_first_lesson' | 'inactive';
 export interface GrowthMetrics { schools: number; new: number; previous_new: number; active: number; previous_active: number; lessons: number; previous_lessons: number }
-export interface GrowthInsight { evidence: AttentionReason | 'activation' | 'usage' | 'support'; title: string; hypothesis: string; action: string; measure: string }
+export interface GrowthInsight { evidence: AttentionReason | 'activation' | 'usage' | 'support' | 'learners'; title: string; hypothesis: string; action: string; measure: string }
 export interface GrowthDashboard {
+ learners?:LearnerSummary;
  journey?:JourneyData;
  status: 'ready'; captured_at: string; days: 7 | 30; definition_version: number; history_since: string;
  metrics: GrowthMetrics;
  trend: {day:string;schools:number}[];
  onboarding: {total:number;profile:number;lesson_type:number;first_lesson:number};
  attention: {school_id:string;name:string;reason:AttentionReason;age_days:number}[];
- latest_ai: {created_at:string;snapshot_at:string;result:{suggestions:GrowthInsight[];evidence?:{days:number;metrics:GrowthMetrics;journey?:{support_window_days:number;topics:{topic:string;cases:number;schools:number;open:number}[]}|null}}} | null;
+ latest_ai: {created_at:string;snapshot_at:string;result:{suggestions:GrowthInsight[];evidence?:{learners?:ReturnType<typeof learnerEvidence>|null;days:number;metrics:GrowthMetrics;journey?:{support_window_days:number;topics:{topic:string;cases:number;schools:number;open:number}[]}|null}}} | null;
 }
 export const attentionLabels: Record<AttentionReason,string> = {
  no_lesson_type:'Minstens 3 dagen aangemeld, nog geen ingeschakeld lestype',
@@ -20,7 +22,15 @@ export function periodFromUrl(url: string): 7 | 30 | null {
  const value=new URL(url).searchParams.get('days');
  return value===null || value==='30' ? 30 : value==='7' ? 7 : null;
 }
+/** Select identity-free learner totals; only new_30 is a rolling window, other counts describe the current account base. */
+export function learnerEvidence(data:LearnerSummary){
+ return {captured_at:data.captured_at,definition_version:data.definition_version,
+  accounts:data.metrics.accounts,new_30:data.metrics.new_30,without_active_school:data.metrics.without_active_school,
+  no_school:data.metrics.no_school,waitlist:data.metrics.waitlist,never_signed_in:data.metrics.never_signed_in,
+  incomplete_without_school:data.metrics.incomplete_without_school};
+}
 /** Explicit allowlist: never pass school names, IDs, emails or free text to AI. */
+/** Build the aggregate evidence snapshot used for AI generation and saved proposal explanations. */
 export function growthEvidence(data: GrowthDashboard) {
  const count=(reason:AttentionReason)=>data.attention.filter(a=>a.reason===reason).length;
  return {
@@ -31,12 +41,14 @@ export function growthEvidence(data: GrowthDashboard) {
   measurement_limits:['No attempt or abandonment funnel','Customer account does not prove unassisted human usage','Package row does not prove a completed package workflow'],
   journey:data.journey?{captured_at:data.journey.captured_at,started_at:data.journey.quality.started_at,enabled:data.journey.quality.enabled,failures_30d:data.journey.quality.failures_30d,triggers_active:data.journey.quality.triggers_active,
    support_window_days:30,topics:data.journey.support_topics.map(t=>({topic:t.topic,cases:t.cases,schools:t.schools,open:t.open}))}:null,
+  learners:data.learners?learnerEvidence(data.learners):null,
   signals:{no_lesson_type:count('no_lesson_type'),no_first_lesson:count('no_first_lesson'),inactive:count('inactive')},
  };
 }
+/** Reject malformed or unsupported AI suggestions before any result is saved or displayed. */
 export function validateInsights(value:unknown): {suggestions:GrowthInsight[]} {
  if (!value || typeof value!=='object' || !('suggestions' in value) || !Array.isArray(value.suggestions) || value.suggestions.length>3) throw new Error('Invalid insights');
- const evidence=['no_lesson_type','no_first_lesson','inactive','activation','usage','support'];
+ const evidence=['no_lesson_type','no_first_lesson','inactive','activation','usage','support','learners'];
  for(const item of value.suggestions) {
   if (!item || typeof item!=='object' || !evidence.includes(item.evidence)) throw new Error('Invalid evidence');
   for(const key of ['title','hypothesis','action','measure']) {
