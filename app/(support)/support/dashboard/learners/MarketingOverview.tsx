@@ -17,7 +17,8 @@ export default function MarketingOverview({token,isCurrentToken}:{token:string;i
     return()=>controller.abort();
   },[token,isCurrentToken,attempt]);
   const visible=result?.token===token?result:null;
-  const group=visible?.data?.groups.find(g=>g.scope===scope);
+  const group=visible?.data?.groups?.find(g=>g.scope===scope);
+  const error=visible?.error??(visible?.data&&!group?'De gekozen doelgroep ontbreekt in het antwoord. Probeer opnieuw.':null);
   return <section className={`${styles.schoolPanel} ${local.panel}`} aria-labelledby="marketing-title">
     <p className={styles.eyebrow}>CAMPAGNEVOORBEREIDING · ALLEEN EIGENAAR</p>
     <h2 id="marketing-title">Wie wil van Ribba horen?</h2>
@@ -25,7 +26,7 @@ export default function MarketingOverview({token,isCurrentToken}:{token:string;i
     <label className={local.form}>Doelgroep<select value={scope} onChange={e=>setScope(e.target.value as 'all'|'none')}>
       <option value="none">Zonder schoolkoppeling</option><option value="all">Alle leerlingaccounts</option>
     </select></label>
-    {!group?<div role="status"><p>{visible?.error??'Voorkeuren laden…'}</p>{visible?.error&&<button className={styles.quietButton} onClick={()=>retry(n=>n+1)}>Opnieuw proberen</button>}</div>:<>
+    {!group?<div role="status"><p>{error??'Voorkeuren laden…'}</p>{error&&<button className={styles.quietButton} onClick={()=>retry(n=>n+1)}>Opnieuw proberen</button>}</div>:<>
       <div className={styles.stats}>
         <article className={styles.stat}><span>Toestemming bruikbaar</span><strong>{group.eligible}</strong><small>16+ volgens eigen profiel · hetzelfde e-mailadres</small></article>
         <article className={styles.stat}><span>Nog geen centrale keuze</span><strong>{group.not_asked}</strong><small>Alleen in de app om toestemming vragen</small></article>
