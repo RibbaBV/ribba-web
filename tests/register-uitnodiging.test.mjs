@@ -15,6 +15,7 @@ import {
   moetUitnodigen,
   nodigUitViaServer,
   INTERNAL_SECRET_ONTBREEKT,
+  stuurEigenBevestiging,
   uitnodigingsRegelSchool,
   watGebeurtErNuHtml,
   UITNODIGING_BRON,
@@ -87,7 +88,7 @@ describe('nodigUitViaServer', () => {
     assert.equal(aanroepen[0].init.method, 'POST');
     assert.equal(aanroepen[0].init.headers.Authorization, 'Bearer sleutel');
     assert.equal(aanroepen[0].init.headers['x-internal-secret'], 'intern-geheim');
-    assert.deepEqual(aanroepen[0].body, { studentId: 's-1', email: 'arda@voorbeeld.nl', bron: UITNODIGING_BRON });
+    assert.deepEqual(aanroepen[0].body, { studentId: 's-1', email: 'arda@voorbeeld.nl', bron: UITNODIGING_BRON, mailVariant: 'inschrijving' });
   });
 
   test('zonder intern geheim wordt er niet aangeroepen: een configuratiefout, geen stille mislukking', async () => {
@@ -114,21 +115,16 @@ describe('nodigUitViaServer', () => {
 });
 
 describe('mailteksten', () => {
-  test('uitgenodigd: de leerling weet dat de tweede mail nú komt', () => {
-    const t = watGebeurtErNuHtml({ soort: 'uitgenodigd' });
-    assert.match(t, /tweede e-mail/);
-    assert.match(t, /proefles/);
-    assert.doesNotMatch(t, /zodra je rijschool je activeert/i);
+  test('onze bevestiging alleen als er geen uitnodiging uitging (één mail, 6 nov 2026)', () => {
+    assert.equal(stuurEigenBevestiging({ soort: 'uitgenodigd' }), false);
+    assert.equal(stuurEigenBevestiging({ soort: 'niet' }), true);
+    assert.equal(stuurEigenBevestiging({ soort: 'mislukt', fout: 'x' }), true);
   });
 
-  test('niet uitgenodigd: de bestaande belofte blijft', () => {
-    const t = watGebeurtErNuHtml({ soort: 'niet' });
+  test('de bevestiging zonder uitnodiging houdt de bestaande belofte', () => {
+    const t = watGebeurtErNuHtml();
     assert.match(t, /Zodra je rijschool je activeert/);
     assert.match(t, /tweede e-mail/);
-  });
-
-  test('mislukt: de leerling leest dezelfde tekst als "niet" — de school regelt het', () => {
-    assert.equal(watGebeurtErNuHtml({ soort: 'mislukt', fout: 'x' }), watGebeurtErNuHtml({ soort: 'niet' }));
   });
 
   test('de school leest wat er met de app-toegang is gebeurd', () => {
@@ -235,7 +231,7 @@ const leerlingMail = () => mails.find((m) => m.to === 'arda@voorbeeld.nl');
 const schoolMail = () => mails.find((m) => m.to === 'info@school-a.nl');
 
 describe('POST /api/register', () => {
-  test('de fix: nieuwe wachtlijstrij met proefles-aan → uitnodiging, en beide mails zeggen het', async () => {
+  test('nieuwe wachtlijstrij met proefles-aan → uitnodiging, géén eigen bevestiging, school krijgt de melding', async () => {
     reset();
     const res = await POST(verzoek());
     assert.equal(res.status, 200);
@@ -244,9 +240,11 @@ describe('POST /api/register', () => {
     assert.equal(functieAanroepen.length, 1);
     assert.equal(functieAanroepen[0].init.headers.Authorization, 'Bearer test-service-role-key');
     assert.equal(functieAanroepen[0].init.headers['x-internal-secret'], 'test-intern-geheim');
-    assert.deepEqual(functieAanroepen[0].body, { studentId: 's-nieuw', email: 'arda@voorbeeld.nl', bron: 'web-inschrijving' });
-    assert.equal(mails.length, 2);
-    assert.match(leerlingMail().html, /Je krijgt zo een <strong>tweede e-mail<\/strong>/);
+    assert.deepEqual(functieAanroepen[0].body, { studentId: 's-nieuw', email: 'arda@voorbeeld.nl', bron: 'web-inschrijving', mailVariant: 'inschrijving' });
+    // Eén mail naar de leerling (die van de school, via de functie); wij sturen
+    // alleen nog de melding aan de school.
+    assert.equal(mails.length, 1);
+    assert.equal(leerlingMail(), undefined);
     assert.match(schoolMail().html, /uitnodiging voor de Ribba app ontvangen/);
   });
 
