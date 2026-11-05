@@ -6,6 +6,7 @@ import {learnerFilters,learnerFilterLabels,type LearnerFilter,type LearnerList,t
 import styles from '../../support-design.module.css';
 import local from './learners.module.css';
 const date=(value:string|null)=>value?new Date(value).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short'}):'Nog niet ingelogd';
+/** Mount the private overview only while a current MFA session exists. */
 export default function LearnersPage(){
  const {token,isCurrentToken}=useSupportToken();
  return <main className={styles.page}><div className={styles.content}>
@@ -13,7 +14,7 @@ export default function LearnersPage(){
   {token?<AuthenticatedLearners token={token} isCurrentToken={isCurrentToken}/>:<p>Log in met je eigenaaraccount en tweefactor om dit overzicht te openen.</p>}
  </div></main>;
 }
-// Unmount all private state on session loss, including search text and pending requests.
+/** Keep queries, reasons, rows and requests inside the session boundary so signout unmounts all private state. */
 function AuthenticatedLearners({token,isCurrentToken}:{token:string;isCurrentToken:(token:string)=>boolean}){
  const [attempt,retry]=useState(0);
  const [summary,setSummary]=useState<{token:string;data?:LearnerSummary;error?:string}|null>(null);
