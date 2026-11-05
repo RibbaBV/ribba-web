@@ -26,9 +26,19 @@
 // De edge function `invite-student-to-app` in ribbaPro: die maakt het account
 // aan, koppelt het aan de leerlingrij en mailt de wachtwoordlink namens de
 // rijschool. Sinds 5 nov 2026 accepteert hij een aanroep van onze eigen server
-// (service-role-sleutel als Bearer) en nodigt dan uitsluitend het adres uit
-// dat al op de leerlingrij staat. Ontwerp: ribbaPro
-// docs/design/2026-11-05_web-inschrijving-uitnodiging-ontwerp.md.
+// en nodigt dan uitsluitend het adres uit dat al op de leerlingrij staat.
+//
+// HOE WIJ ONS LEGITIMEREN
+// -----------------------
+// Met de kop `x-internal-secret` (== INTERNAL_FUNCTION_SECRET), hetzelfde
+// contract als de Plango-routes en de cron-functies. Niet met de
+// servicesleutel: in de edge-runtime is SUPABASE_SERVICE_ROLE_KEY niet meer de
+// klassieke JWT die wij hebben (gemeten 5 nov 2026), dus een vergelijking
+// daarop faalt altijd. De servicesleutel gaat wél mee in Authorization, omdat
+// de gateway (verify_jwt) een geldige project-JWT eist. Ontbreekt het geheim
+// in onze omgeving, dan roepen we niet aan: dat is een configuratiefout die
+// de school in haar melding leest, geen mail die stilletjes niet komt.
+// Ontwerp: ribbaPro docs/design/2026-11-05_web-inschrijving-uitnodiging-ontwerp.md.
 
 /** Ribba zet dit nepdomein op leerlingen die zonder e-mail zijn ingevoerd. */
 const AUTO_EMAIL_DOMEIN = '@manual.ribba.app';
@@ -71,13 +81,19 @@ export const UITNODIGING_BRON = 'web-inschrijving';
  * Geen e-mailadres in de foutmelding: die komt in het log en in de mail aan
  * de school, niet in een publiek antwoord.
  */
+export const INTERNAL_SECRET_ONTBREEKT = 'INTERNAL_FUNCTION_SECRET ontbreekt in de omgeving van de website';
+
 export async function nodigUitViaServer(opties: {
   supabaseUrl: string;
   serviceKey: string;
+  /** INTERNAL_FUNCTION_SECRET; leeg of ontbrekend = niet aanroepen. */
+  internalSecret: string | null | undefined;
   studentId: string;
   email: string;
   fetchFn?: typeof fetch;
 }): Promise<UitnodigingsUitkomst> {
+  const geheim = (opties.internalSecret ?? '').trim();
+  if (!geheim) return { soort: 'mislukt', fout: INTERNAL_SECRET_ONTBREEKT };
   const doFetch = opties.fetchFn ?? fetch;
   const url = `${opties.supabaseUrl.replace(/\/$/, '')}/functions/v1/invite-student-to-app`;
   try {
@@ -87,6 +103,7 @@ export async function nodigUitViaServer(opties: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${opties.serviceKey}`,
         apikey: opties.serviceKey,
+        'x-internal-secret': geheim,
       },
       body: JSON.stringify({ studentId: opties.studentId, email: opties.email, bron: UITNODIGING_BRON }),
     });

@@ -14,6 +14,7 @@ import {
   isBruikbaarEmailadres,
   moetUitnodigen,
   nodigUitViaServer,
+  INTERNAL_SECRET_ONTBREEKT,
   uitnodigingsRegelSchool,
   watGebeurtErNuHtml,
   UITNODIGING_BRON,
@@ -75,9 +76,9 @@ describe('nodigUitViaServer', () => {
     return { fetchFn, aanroepen };
   }
 
-  const opties = { supabaseUrl: 'https://proj.supabase.co/', serviceKey: 'sleutel', studentId: 's-1', email: 'arda@voorbeeld.nl' };
+  const opties = { supabaseUrl: 'https://proj.supabase.co/', serviceKey: 'sleutel', internalSecret: 'intern-geheim', studentId: 's-1', email: 'arda@voorbeeld.nl' };
 
-  test('roept invite-student-to-app aan als onze eigen server', async () => {
+  test('roept invite-student-to-app aan met het interne geheim én de servicesleutel voor de gateway', async () => {
     const { fetchFn, aanroepen } = nepFetch({ status: 200, body: { success: true } });
     const uitkomst = await nodigUitViaServer({ ...opties, fetchFn });
     assert.deepEqual(uitkomst, { soort: 'uitgenodigd' });
@@ -85,7 +86,17 @@ describe('nodigUitViaServer', () => {
     assert.equal(aanroepen[0].url, 'https://proj.supabase.co/functions/v1/invite-student-to-app');
     assert.equal(aanroepen[0].init.method, 'POST');
     assert.equal(aanroepen[0].init.headers.Authorization, 'Bearer sleutel');
+    assert.equal(aanroepen[0].init.headers['x-internal-secret'], 'intern-geheim');
     assert.deepEqual(aanroepen[0].body, { studentId: 's-1', email: 'arda@voorbeeld.nl', bron: UITNODIGING_BRON });
+  });
+
+  test('zonder intern geheim wordt er niet aangeroepen: een configuratiefout, geen stille mislukking', async () => {
+    for (const internalSecret of [undefined, null, '', '   ']) {
+      const { fetchFn, aanroepen } = nepFetch({ status: 200, body: { success: true } });
+      const uitkomst = await nodigUitViaServer({ ...opties, internalSecret, fetchFn });
+      assert.deepEqual(uitkomst, { soort: 'mislukt', fout: INTERNAL_SECRET_ONTBREEKT });
+      assert.equal(aanroepen.length, 0);
+    }
   });
 
   test('een fout van de functie is een uitkomst, geen uitzondering', async () => {
@@ -134,6 +145,7 @@ describe('mailteksten', () => {
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://proj.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+process.env.INTERNAL_FUNCTION_SECRET = 'test-intern-geheim';
 process.env.RESEND_API_KEY = 're_test';
 
 let bestaand = null;
@@ -231,6 +243,7 @@ describe('POST /api/register', () => {
     assert.equal(ingevoegd[0].rij.status, 'waitlist');
     assert.equal(functieAanroepen.length, 1);
     assert.equal(functieAanroepen[0].init.headers.Authorization, 'Bearer test-service-role-key');
+    assert.equal(functieAanroepen[0].init.headers['x-internal-secret'], 'test-intern-geheim');
     assert.deepEqual(functieAanroepen[0].body, { studentId: 's-nieuw', email: 'arda@voorbeeld.nl', bron: 'web-inschrijving' });
     assert.equal(mails.length, 2);
     assert.match(leerlingMail().html, /Je krijgt zo een <strong>tweede e-mail<\/strong>/);

@@ -26,6 +26,8 @@ import {
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const resendApiKey = process.env.RESEND_API_KEY;
+// Voor de interne aanroep van invite-student-to-app; zie lib/register-uitnodiging.ts.
+const internalFunctionSecret = process.env.INTERNAL_FUNCTION_SECRET;
 
 function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey);
@@ -251,6 +253,7 @@ export async function POST(request: NextRequest) {
       uitnodiging = await nodigUitViaServer({
         supabaseUrl,
         serviceKey: supabaseServiceKey,
+        internalSecret: internalFunctionSecret,
         studentId,
         email: studentData.email,
       });

@@ -36,7 +36,7 @@ Deze repo = **de website voor Ribba Rijschool Planner**, gehost op `link.ribba.a
 - **Abonnement opzeggen** (knop op `/upgrade`)
 - **Betaalflow** — Mollie iDEAL + SEPA recurring (`/api/checkout`, `/api/mollie-webhook`, `/api/cancel-subscription`)
 - **Leerling-inschrijfpagina per rijschool** (`/[slug]`)
-  - Een nieuwe wachtlijstrij die direct een proefles mag plannen (trigger in de database) krijgt meteen de wachtwoordmail: `/api/register` roept `invite-student-to-app` (ribbaPro) intern aan met de service-role-sleutel. Regels en mailteksten in `lib/register-uitnodiging.ts` (5 nov 2026).
+  - Een nieuwe wachtlijstrij die direct een proefles mag plannen (trigger in de database) krijgt meteen de wachtwoordmail: `/api/register` roept `invite-student-to-app` (ribbaPro) intern aan met `x-internal-secret` (== `INTERNAL_FUNCTION_SECRET`; de servicesleutel gaat alleen mee voor de gateway). Regels en mailteksten in `lib/register-uitnodiging.ts` (5 nov 2026).
 - **Marketplace web-backend** (Epic ribba.app#35):
   - `/api/inquiry-submit` — inquiry-intake vanaf de vergelijkingssite (CORS), schrijft `inquiries` + `inquiry_recipients`, stuurt outreach-mails naar rijscholen
   - `/chat/[token]` — geanonimiseerde web-chat gateway met e-mailverificatie (Supabase Auth OTP), realtime via Supabase Realtime
