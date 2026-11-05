@@ -15,6 +15,13 @@ import {
   VELDLABELS,
   type Verschil,
 } from '@/lib/register-bestaande-leerling';
+import {
+  moetUitnodigen,
+  nodigUitViaServer,
+  uitnodigingsRegelSchool,
+  watGebeurtErNuHtml,
+  type UitnodigingsUitkomst,
+} from '@/lib/register-uitnodiging';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -165,6 +172,10 @@ export async function POST(request: NextRequest) {
     };
 
     let studentId: string;
+    // De rij zoals de database hem heeft opgeslagen: een trigger zet
+    // "Mag proefles plannen" bij een nieuwe wachtlijstrij, dus die waarde
+    // lezen we terug in plaats van hem te raden. Zie lib/register-uitnodiging.ts.
+    let nieuweRij: { mag_proefles_plannen: boolean | null; user_id: string | null } | null = null;
     // Bestaat er al een rij die de rijschool aanmaakte (zelfde e-mail, nog geen
     // account), dan vult het formulier alleen lege velden aan en laat het de
     // status staan. Afwijkingen gaan naar de school. Zie
@@ -193,7 +204,7 @@ export async function POST(request: NextRequest) {
       const { data: insertedStudent, error: insertError } = await supabase
         .from('students')
         .insert(studentData)
-        .select('id')
+        .select('id, mag_proefles_plannen, user_id')
         .single();
       if (insertError || !insertedStudent) {
         console.error('Insert error:', insertError);
@@ -217,6 +228,39 @@ export async function POST(request: NextRequest) {
         );
       }
       studentId = insertedStudent.id;
+      nieuweRij = {
+        mag_proefles_plannen: insertedStudent.mag_proefles_plannen ?? null,
+        user_id: insertedStudent.user_id ?? null,
+      };
+    }
+
+    // Mag deze leerling direct een proefles plannen? Dan krijgt hij meteen de
+    // wachtwoordmail voor de app, via dezelfde functie die de app gebruikt.
+    // Een mislukking laat de inschrijving staan; de school leest het in haar
+    // melding. Zie lib/register-uitnodiging.ts (5 nov 2026).
+    let uitnodiging: UitnodigingsUitkomst = { soort: 'niet' };
+    if (
+      moetUitnodigen({
+        nieuw: nieuweRij !== null,
+        status,
+        mag_proefles_plannen: nieuweRij?.mag_proefles_plannen,
+        user_id: nieuweRij?.user_id,
+        email: studentData.email,
+      })
+    ) {
+      uitnodiging = await nodigUitViaServer({
+        supabaseUrl,
+        serviceKey: supabaseServiceKey,
+        studentId,
+        email: studentData.email,
+      });
+      if (uitnodiging.soort === 'mislukt') {
+        console.error('[register] uitnodiging voor de app mislukt', {
+          drivingschool_id,
+          student_id: studentId,
+          fout: uitnodiging.fout,
+        });
+      }
     }
 
     // Referral-attributie (?ref=CODE / cookie). Best-effort: vangt intern
@@ -254,7 +298,7 @@ export async function POST(request: NextRequest) {
         <div style="margin-top: 24px; padding: 16px; background: #eff6ff; border-radius: 12px;">
           <p style="font-size: 14px; color: #1e293b; font-weight: 700; margin: 0 0 8px 0;">📱 Wat gebeurt er nu?</p>
           <p style="font-size: 13px; color: #475569; margin: 0; line-height: 1.7;">
-            Zodra je rijschool je activeert, krijg je een <strong>tweede e-mail</strong> waarmee je een wachtwoord kunt instellen en de Ribba app kunt downloaden. Daarmee zie je je lessen, voortgang en facturen.
+            ${watGebeurtErNuHtml(uitnodiging)}
           </p>
         </div>
         <p style="color: #94a3b8; font-size: 13px; margin-top: 32px;">
@@ -305,7 +349,7 @@ export async function POST(request: NextRequest) {
           </div>`
             : ''}
           <p style="color: #64748b; font-size: 14px; margin-top: 24px;">
-            Bekijk en beheer deze inschrijving in de Ribba app.
+            ${uitnodigingsRegelSchool(uitnodiging)}
           </p>
         </div>
         `,
