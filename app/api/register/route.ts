@@ -18,6 +18,7 @@ import {
 import {
   moetUitnodigen,
   nodigUitViaServer,
+  stuurEigenBevestiging,
   uitnodigingsRegelSchool,
   watGebeurtErNuHtml,
   type UitnodigingsUitkomst,
@@ -279,8 +280,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Send confirmation email to student
-    await sendEmail(
+    // Bevestiging aan de leerling — alleen als er geen uitnodiging uitging.
+    // Anders heeft hij de ene welkomstmail van de school al (6 nov 2026).
+    if (stuurEigenBevestiging(uitnodiging)) await sendEmail(
       email.trim().toLowerCase(),
       `Bevestiging inschrijving bij ${escapeHtml(school.name)}`,
       `
@@ -301,7 +303,7 @@ export async function POST(request: NextRequest) {
         <div style="margin-top: 24px; padding: 16px; background: #eff6ff; border-radius: 12px;">
           <p style="font-size: 14px; color: #1e293b; font-weight: 700; margin: 0 0 8px 0;">📱 Wat gebeurt er nu?</p>
           <p style="font-size: 13px; color: #475569; margin: 0; line-height: 1.7;">
-            ${watGebeurtErNuHtml(uitnodiging)}
+            ${watGebeurtErNuHtml()}
           </p>
         </div>
         <p style="color: #94a3b8; font-size: 13px; margin-top: 32px;">

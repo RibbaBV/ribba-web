@@ -105,7 +105,9 @@ export async function nodigUitViaServer(opties: {
         apikey: opties.serviceKey,
         'x-internal-secret': geheim,
       },
-      body: JSON.stringify({ studentId: opties.studentId, email: opties.email, bron: UITNODIGING_BRON }),
+      // mailVariant: één welkomstmail namens de school in plaats van onze
+      // bevestiging plus een wachtwoordmail (besluit Önder 6 nov 2026).
+      body: JSON.stringify({ studentId: opties.studentId, email: opties.email, bron: UITNODIGING_BRON, mailVariant: 'inschrijving' }),
     });
     if (!res.ok) {
       let fout = `status ${res.status}`;
@@ -123,15 +125,17 @@ export async function nodigUitViaServer(opties: {
   }
 }
 
-/** Het blok "Wat gebeurt er nu?" in de bevestiging aan de leerling (HTML, zonder gebruikersinvoer). */
-export function watGebeurtErNuHtml(uitkomst: UitnodigingsUitkomst): string {
-  if (uitkomst.soort === 'uitgenodigd') {
-    return (
-      'Je krijgt zo een <strong>tweede e-mail</strong> om je wachtwoord in te stellen. ' +
-      'Download daarna de Ribba app en log in: daar plan je je proefles. ' +
-      'Geen mail gezien? Kijk in je spam, of vraag je rijschool om de uitnodiging opnieuw te sturen.'
-    );
-  }
+/**
+ * Sturen wij zelf nog een bevestiging? Alleen als er géén uitnodiging uitging.
+ * Ging hij wel uit, dan heeft de leerling de welkomstmail van de school al
+ * (welkom, gegevens, wachtwoord, app, proefles) en is een tweede mail ruis.
+ */
+export function stuurEigenBevestiging(uitkomst: UitnodigingsUitkomst): boolean {
+  return uitkomst.soort !== 'uitgenodigd';
+}
+
+/** Het blok "Wat gebeurt er nu?" in onze bevestiging (HTML, zonder gebruikersinvoer). Alleen zonder uitnodiging. */
+export function watGebeurtErNuHtml(): string {
   return (
     'Zodra je rijschool je activeert, krijg je een <strong>tweede e-mail</strong> waarmee je een wachtwoord kunt instellen en de Ribba app kunt downloaden. ' +
     'Daarmee zie je je lessen, voortgang en facturen.'
