@@ -4,6 +4,7 @@ import { periodFromUrl,growthEvidence,type GrowthDashboard } from '@/lib/owner-d
 import { generateGrowthInsights } from '@/lib/growth-ai';
 export const dynamic='force-dynamic';
 export const maxDuration=30;
+/** Generate and persist owner-only aggregate proposals, allowing existing school insights when learner metrics are unavailable. */
 export async function POST(req:NextRequest) {
  return withSupportAccess(req,{action:'owner.insights.generate',level:0,ownerOnly:true},async({supabase,user})=>{
   const days=periodFromUrl(req.url);

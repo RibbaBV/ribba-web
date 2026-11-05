@@ -7,6 +7,7 @@ export function learnerDigestMail(d:LearnerDigest){
  'Bekijk het beveiligde overzicht: https://mijn.ribba.app/support/dashboard/learners','',
  'Bekende testaccounts en interne schoolaccounts zijn uitgesloten. Onbekende testaccounts kunnen nog meetellen. Accountregistraties zijn geen downloads. Verwijderde accounts tellen niet mee.'].join('\n')};
 }
+/** Send a validated aggregate digest using the day as a stable retry key; reject provider errors or missing acknowledgements. */
 export async function sendLearnerDigest(d:LearnerDigest,key:string){
  const res=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json','Idempotency-Key':`owner-learners-v1/${d.day}`},body:JSON.stringify(learnerDigestMail(d)),signal:AbortSignal.timeout(15000)});
  if(!res.ok)throw new Error('Digest provider failed');

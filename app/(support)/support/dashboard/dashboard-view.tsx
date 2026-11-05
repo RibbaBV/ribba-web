@@ -3,6 +3,7 @@ import {topics} from '@/lib/owner-journey';
 import {attentionLabels,type GrowthDashboard} from '@/lib/owner-dashboard';
 import styles from './dashboard.module.css';
 const format=(date:string)=>new Date(date).toLocaleString('nl-NL',{timeZone:'Europe/Amsterdam',dateStyle:'medium',timeStyle:'short'});
+/** Render owner growth totals, attention signals and proposals alongside their saved evidence and loading or error states. */
 export default function DashboardView({data,error,collecting,unauthorized,days,onDays,onRetry,insight,aiBusy,aiError,stale,onPropose}:{
  data:GrowthDashboard|null;error?:string;collecting:boolean;unauthorized:boolean;days:7|30;
  onDays:(days:7|30)=>void;onRetry:()=>void;insight?:GrowthDashboard['latest_ai'];aiBusy:boolean;aiError?:string;stale:boolean;onPropose:()=>void;

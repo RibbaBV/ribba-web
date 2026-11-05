@@ -4,6 +4,7 @@ import {supportJson} from '@/lib/support-response';
 import {sendLearnerDigest,type LearnerDigest} from '@/lib/owner-learner-digest';
 export const dynamic='force-dynamic';
 export const maxDuration=30;
+/** Send one claimed digest only in explicitly enabled production; preserve retry eligibility on any failure. */
 export async function GET(req:NextRequest){
  if(!process.env.CRON_SECRET||req.headers.get('authorization')!==`Bearer ${process.env.CRON_SECRET}`)return supportJson({error:'Geen toegang.'},401);
  // Activation is separate from deployment. Never send from previews.

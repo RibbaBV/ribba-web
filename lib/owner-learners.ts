@@ -12,6 +12,7 @@ export interface LearnerList {
  total:number;page:number;page_size:number;
  rows:{user_id:string;email:string|null;name:string|null;name_source:'learner_profile'|'school_record'|null;registered_at:string;last_sign_in_at:string|null;registration_hint:boolean;profile_complete:boolean;school_state:'none'|'waitlist'|'active'|'graduated'|'inactive';schools:{id:string;name:string;status:string}[]}[];
 }
+/** Validate bounded owner searches and require an auditable reason before returning normalized input. */
 export function parseLearnerQuery(value:unknown): {filter:LearnerFilter;query:string;page:number;reason:string}|null {
  if(!value||typeof value!=='object')return null;
  const v=value as Record<string,unknown>;

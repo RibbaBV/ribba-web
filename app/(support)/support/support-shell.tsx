@@ -48,6 +48,7 @@ export default function SupportShell({ children }: { children: React.ReactNode }
   </NavigationContext.Provider>;
 }
 
+/** Render shared support navigation, exposing owner dashboard links only for the verified owner. */
 export function SupportFrame({ owner, path, dirty, children }: { owner: boolean; path: string; dirty: boolean; children: React.ReactNode }) {
   return (
     <div className={owner ? styles.shell : undefined} onClickCapture={event => {

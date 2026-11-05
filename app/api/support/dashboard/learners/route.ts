@@ -2,6 +2,7 @@ import {NextRequest} from 'next/server';
 import {withSupportAccess,SupportRequestError} from '@/lib/support-auth';
 import {parseLearnerQuery} from '@/lib/owner-learners';
 export const dynamic='force-dynamic';
+/** Return learner totals only after owner, MFA and audit checks. */
 export async function GET(req:NextRequest){
  return withSupportAccess(req,{action:'owner.learners.summary',ownerOnly:true,level:0},async({supabase,user})=>{
   const {data,error}=await supabase.rpc('owner_learner_summary',{p_actor:user.id});
@@ -9,6 +10,7 @@ export async function GET(req:NextRequest){
   return data;
  });
 }
+/** Return a bounded learner list after owner authorization and reason auditing; keep searches out of URLs. */
 export async function POST(req:NextRequest){
  // Query is in POST body so email searches do not enter URLs/access logs.
  const input=parseLearnerQuery(await req.json().catch(()=>null));

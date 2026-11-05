@@ -22,6 +22,7 @@ export function periodFromUrl(url: string): 7 | 30 | null {
  const value=new URL(url).searchParams.get('days');
  return value===null || value==='30' ? 30 : value==='7' ? 7 : null;
 }
+/** Select identity-free learner totals; only new_30 is a rolling window, other counts describe the current account base. */
 export function learnerEvidence(data:LearnerSummary){
  return {captured_at:data.captured_at,definition_version:data.definition_version,
   accounts:data.metrics.accounts,new_30:data.metrics.new_30,without_active_school:data.metrics.without_active_school,
@@ -29,6 +30,7 @@ export function learnerEvidence(data:LearnerSummary){
   incomplete_without_school:data.metrics.incomplete_without_school};
 }
 /** Explicit allowlist: never pass school names, IDs, emails or free text to AI. */
+/** Build the aggregate evidence snapshot used for AI generation and saved proposal explanations. */
 export function growthEvidence(data: GrowthDashboard) {
  const count=(reason:AttentionReason)=>data.attention.filter(a=>a.reason===reason).length;
  return {
@@ -43,6 +45,7 @@ export function growthEvidence(data: GrowthDashboard) {
   signals:{no_lesson_type:count('no_lesson_type'),no_first_lesson:count('no_first_lesson'),inactive:count('inactive')},
  };
 }
+/** Reject malformed or unsupported AI suggestions before any result is saved or displayed. */
 export function validateInsights(value:unknown): {suggestions:GrowthInsight[]} {
  if (!value || typeof value!=='object' || !('suggestions' in value) || !Array.isArray(value.suggestions) || value.suggestions.length>3) throw new Error('Invalid insights');
  const evidence=['no_lesson_type','no_first_lesson','inactive','activation','usage','support','learners'];
