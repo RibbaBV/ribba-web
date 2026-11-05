@@ -1,5 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
+import MarketingOverview from './MarketingOverview';
+import {marketingLabels} from '@/lib/learner-marketing';
 import Link from 'next/link';
 import {useSupportToken} from '../../client';
 import {learnerFilters,learnerFilterLabels,type LearnerFilter,type LearnerList,type LearnerSummary} from '@/lib/owner-learners';
@@ -52,6 +54,7 @@ function AuthenticatedLearners({token,isCurrentToken}:{token:string;isCurrentTok
     <details><summary>Dagcijfers bekijken</summary><div className={local.days}>{data.trend.map(d=><span key={d.day}>{d.day}: <b>{d.accounts}</b></span>)}</div></details>
     <p className={styles.subtitle}>{data.metrics.accounts} leerlingaccounts · {data.metrics.signed_in_30} met een login in de laatste 30 dagen. {data.metrics.incomplete_without_school} zonder actieve school hebben nog een onvolledig zelfstandig profiel.</p>
    </section>
+   <MarketingOverview token={token} isCurrentToken={isCurrentToken}/>
    <section className={`${styles.schoolPanel} ${local.panel}`} aria-labelledby="list-title"><h2 id="list-title">Leerlingenlijst</h2><p className={styles.subtitle}>Naam en e-mailadres zijn persoonsgegevens. Geef aan waarom je deze lijst bekijkt; je inzage wordt vastgelegd. Zet geen leerlinggegevens in de reden.</p>
     <form className={local.form} onSubmit={e=>{e.preventDefault();if(token)setRequest({token,filter,query:query.trim(),reason:reason.trim(),page:0});}}>
      <label>Toon<select value={filter} onChange={e=>setFilter(e.target.value as LearnerFilter)}>{learnerFilters.map(f=><option key={f} value={f}>{learnerFilterLabels[f]}</option>)}</select></label>
@@ -63,7 +66,7 @@ function AuthenticatedLearners({token,isCurrentToken}:{token:string;isCurrentTok
     {rows&&<><p className={styles.subtitle}>{rows.total} accounts · {learnerFilterLabels[request!.filter]}{request!.query?` · Zoekterm: ${request!.query}`:''}</p>
      {rows.rows.length===0?<p className={styles.empty}>Geen leerlingaccounts gevonden met deze filters.</p>:<div className={local.rows}>{rows.rows.map(row=><article className={local.row} key={row.user_id}>
       <div><h3>{row.name??'Naam niet eenduidig beschikbaar'}</h3>{row.name_source==='school_record'&&<small>Naam uit gekoppelde schoolkaart</small>}<p>{row.email??'Geen e-mailadres beschikbaar'}</p><span className={styles.badgeAttention}>{learnerFilterLabels[row.school_state]}</span></div>
-      <dl><div><dt>Account aangemaakt</dt><dd>{date(row.registered_at)}</dd></div><div><dt>Laatste login</dt><dd>{date(row.last_sign_in_at)}</dd></div><div><dt>Zelfstandig profiel</dt><dd>{row.profile_complete?'Alle velden ingevuld':row.school_state==='active'?'Niet volledig · school beheert eigen gegevens':'Nog niet volledig'}</dd></div></dl>
+      <dl>{row.marketing&&<div><dt>Marketingmails</dt><dd>{marketingLabels[row.marketing.status]}{row.marketing.status==='granted'&&!row.marketing.eligible?' · momenteel niet bruikbaar':''}</dd></div>}<div><dt>Account aangemaakt</dt><dd>{date(row.registered_at)}</dd></div><div><dt>Laatste login</dt><dd>{date(row.last_sign_in_at)}</dd></div><div><dt>Zelfstandig profiel</dt><dd>{row.profile_complete?'Alle velden ingevuld':row.school_state==='active'?'Niet volledig · school beheert eigen gegevens':'Nog niet volledig'}</dd></div></dl>
       <div>{row.schools.map((school,i)=><p key={`${school.id}-${i}`}><Link href={`/support/${school.id}`}>{school.name}</Link> · {school.status==='suspended'?'Geschorst':learnerFilterLabels[school.status as LearnerFilter]??'Onbekende status'}</p>)}{row.registration_hint&&<small>Markering zelfstandige registratie aanwezig</small>}</div>
      </article>)}</div>}
      <div className={local.pager}><button className={styles.quietButton} disabled={rows.page===0||loading} onClick={()=>setRequest({...request!,page:rows.page-1})}>Vorige</button><span>Pagina {rows.page+1} van {Math.max(1,Math.ceil(rows.total/rows.page_size))}</span><button className={styles.quietButton} disabled={(rows.page+1)*rows.page_size>=rows.total||loading} onClick={()=>setRequest({...request!,page:rows.page+1})}>Volgende</button><button className={styles.quietButton} onClick={()=>{setRequest(null);setList(null);}}>Lijst sluiten</button></div>
