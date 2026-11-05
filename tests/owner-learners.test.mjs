@@ -24,5 +24,13 @@ test('digest retries use same provider key and payload; provider failures cannot
 });
 test('AI learner evidence only includes aggregate allowlist, never identities or metadata',()=>{
  const facts=learnerEvidence({captured_at:'2026-11-04T12:00:00Z',definition_version:1,metrics:{accounts:1,new_30:1,without_active_school:1,no_school:1,waitlist:0,never_signed_in:1,incomplete_without_school:1,email:'PRIVATE'},rows:[{name:'PRIVATE',email:'PRIVATE'}],secret:'PRIVATE'});
- assert.ok(!JSON.stringify(facts).includes('PRIVATE'));assert.equal(facts.window_days,30);
+ assert.ok(!JSON.stringify(facts).includes('PRIVATE'));assert.equal('window_days' in facts,false);assert.equal(facts.new_30,1);assert.equal(facts.accounts,1);
+});
+
+test('digest rejects every missing metric and malformed payload before sending',async(t)=>{
+ const fetch=t.mock.method(globalThis,'fetch',()=>{throw new Error('Must not send');});
+ const payloads=[undefined,null,{},...Object.keys(digest.payload).map(field=>{const p={...digest.payload};delete p[field];return p;})];
+ for(const field of Object.keys(digest.payload))for(const value of [null,undefined,-1,1.5,'2',Infinity])payloads.push({...digest.payload,[field]:value});
+ for(const payload of payloads){assert.throws(()=>learnerDigestMail({...digest,payload}),/Invalid digest/);await assert.rejects(sendLearnerDigest({...digest,payload},'fake'),/Invalid digest/);}
+ assert.equal(fetch.mock.callCount(),0);
 });

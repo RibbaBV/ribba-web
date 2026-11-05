@@ -23,7 +23,7 @@ export function periodFromUrl(url: string): 7 | 30 | null {
  return value===null || value==='30' ? 30 : value==='7' ? 7 : null;
 }
 export function learnerEvidence(data:LearnerSummary){
- return {captured_at:data.captured_at,definition_version:data.definition_version,window_days:30,
+ return {captured_at:data.captured_at,definition_version:data.definition_version,
   accounts:data.metrics.accounts,new_30:data.metrics.new_30,without_active_school:data.metrics.without_active_school,
   no_school:data.metrics.no_school,waitlist:data.metrics.waitlist,never_signed_in:data.metrics.never_signed_in,
   incomplete_without_school:data.metrics.incomplete_without_school};

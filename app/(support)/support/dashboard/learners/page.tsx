@@ -7,7 +7,14 @@ import styles from '../../support-design.module.css';
 import local from './learners.module.css';
 const date=(value:string|null)=>value?new Date(value).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short'}):'Nog niet ingelogd';
 export default function LearnersPage(){
- const {token,status,isCurrentToken}=useSupportToken();
+ const {token,isCurrentToken}=useSupportToken();
+ return <main className={styles.page}><div className={styles.content}>
+  <header className={styles.hero}><div><p className={styles.eyebrow}>RIBBA · ALLEEN EIGENAAR</p><h1>Leerlingen in beeld.</h1><p className={styles.subtitle}>Van account naar een rijschool. Zie waar leerlingen staan en waar hulp nodig kan zijn.</p></div></header>
+  {token?<AuthenticatedLearners token={token} isCurrentToken={isCurrentToken}/>:<p>Log in met je eigenaaraccount en tweefactor om dit overzicht te openen.</p>}
+ </div></main>;
+}
+// Unmount all private state on session loss, including search text and pending requests.
+function AuthenticatedLearners({token,isCurrentToken}:{token:string;isCurrentToken:(token:string)=>boolean}){
  const [attempt,retry]=useState(0);
  const [summary,setSummary]=useState<{token:string;data?:LearnerSummary;error?:string}|null>(null);
  const [filter,setFilter]=useState<LearnerFilter>('without_active');
@@ -34,9 +41,7 @@ export default function LearnersPage(){
  const current=request?.token===token&&list?.request===request?list:null;
  const data=visible?.data;const rows=current?.data;
  const loading=!!request&&request.token===token&&!current;
- return <main className={styles.page}><div className={styles.content}>
-  <header className={styles.hero}><div><p className={styles.eyebrow}>RIBBA · ALLEEN EIGENAAR</p><h1>Leerlingen in beeld.</h1><p className={styles.subtitle}>Van account naar een rijschool. Zie waar leerlingen staan en waar hulp nodig kan zijn.</p></div></header>
-  {status==='geen-toegang'||!token?<p>Log in met je eigenaaraccount en tweefactor om dit overzicht te openen.</p>:!data?<div role="status"><p>{visible?.error??'Leerlingmetingen laden…'}</p>{visible?.error&&<button className={styles.quietButton} onClick={()=>retry(n=>n+1)}>Opnieuw proberen</button>}</div>:<>
+ return <>{!data?<div role="status"><p>{visible?.error??'Leerlingmetingen laden…'}</p>{visible?.error&&<button className={styles.quietButton} onClick={()=>retry(n=>n+1)}>Opnieuw proberen</button>}</div>:<>
    <div className={styles.stats}>
     <article className={styles.stat}><span>Nieuwe accounts · 30 dagen</span><strong>{data.metrics.new_30}</strong><small>{data.metrics.previous_new_30} in de 30 dagen daarvoor</small></article>
     <article className={styles.stat}><span>Zonder actieve rijschool</span><strong>{data.metrics.without_active_school}</strong><small>{data.metrics.no_school} zonder schoolkoppeling · {data.metrics.waitlist} op de wachtlijst</small></article>
@@ -65,5 +70,5 @@ export default function LearnersPage(){
    </section>
    <details className={`${styles.schoolPanel} ${local.panel}`}><summary>Wat meten we precies?</summary><p>Accounts zijn geen downloads. Laatste login bewijst geen actief appgebruik; een activatielink kan ook een sessie starten. Het exacte eerste loginmoment is niet beschikbaar.</p><p>Een leerling zonder actieve school kan op de wachtlijst staan, geslaagd of gestopt zijn. Geen schoolkoppeling betekent geen huidige schoolrij, niet bewezen dat iemand nooit een school had.</p><p>De zelfstandige registratiemarkering is een aanwijzing uit accountgegevens, geen bewezen herkomst. {data.metrics.hint_with_active_school} accounts met die markering hebben nu een actieve school; dat is geen gemeten conversiepercentage.</p><p>Platformmedewerkers, expliciet gemarkeerde testaccounts en accounts die uitsluitend aan interne scholen zijn gekoppeld tellen niet mee. Nog onbekende testaccounts kunnen in de lijst staan. Verwijderde accounts verdwijnen uit de tellingen, ook uit historische registratiedagen.</p><p>Bijgewerkt: {date(data.captured_at)}. Er worden geen leerlingnamen of e-mailadressen naar AI gestuurd.</p></details>
   </>}
- </div></main>;
+ </>;
 }

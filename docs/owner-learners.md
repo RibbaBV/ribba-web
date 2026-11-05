@@ -62,7 +62,8 @@ Browserdata hangt aan de actuele sessie en verdwijnt bij sessieverlies.
 Geen nieuwe rollen, ownerbinding, cache of marketingtracking toegevoegd.
 
 AI krijgt alleen de expliciete geaggregeerde allowlist in learnerEvidence,
-met eigen meettijd, definitie en 30-dagenvenster. De onderbouwing wordt bij het
+met eigen meettijd en definitie. Alleen new_30 heeft een rollend 30-dagenvenster;
+de overige leerlingtellingen beschrijven de volledige huidige accountbasis. De onderbouwing wordt bij het
 voorstel opgeslagen en getoond. Zonder meetbare aandachtspunten wordt evidence
 learners geweigerd. Een ontbrekende nieuwe RPC blokkeert bestaande school-AI niet.
 
