@@ -30,6 +30,7 @@ export default function SchoolOverview({ scholen, fout, toonIntern, onToonIntern
   return <div className={styles.page}>
     <header className={styles.topbar} data-support-overview-actions>
       <div className={styles.brand}><RibbaLogo height={25} /><span>Support</span></div>
+      <Link href="/support/gebruik" style={{ color: 'var(--support-link, #a8ceff)' }}>Gebruik van de app</Link>
       <OwnerDashboardLink />
       <button className={styles.quietButton} onClick={onUitloggen}>Uitloggen <span aria-hidden="true">↗</span></button>
     </header>

@@ -66,7 +66,8 @@ export function SupportFrame({ owner, path, dirty, children }: { owner: boolean;
           <Link href="/support/dashboard" aria-current={path === '/support/dashboard' ? 'page' : undefined}>Overzicht</Link>
           <Link href="/support/dashboard/journey" aria-current={path.startsWith('/support/dashboard/journey') ? 'page' : undefined}>Klantreis en support</Link>
           <Link href="/support/dashboard/learners" aria-current={path.startsWith('/support/dashboard/learners') ? 'page' : undefined}>Leerlingen</Link>
-          <Link href="/support" aria-current={!path.startsWith('/support/dashboard') ? 'page' : undefined}>Rijscholen</Link>
+          <Link href="/support/gebruik" aria-current={path.startsWith('/support/gebruik') ? 'page' : undefined}>Gebruik van de app</Link>
+          <Link href="/support" aria-current={!path.startsWith('/support/dashboard') && !path.startsWith('/support/gebruik') ? 'page' : undefined}>Rijscholen</Link>
         </nav>
         <span className={styles.owner}>Alleen eigenaar</span>
       </aside>}
