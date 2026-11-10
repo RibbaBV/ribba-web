@@ -50,3 +50,9 @@ test('de pagina is bereikbaar vanuit het rijscholenoverzicht en de eigenaarzijba
   assert.match(readFileSync('app/(support)/support/school-overview.tsx', 'utf8'), /href="\/support\/gebruik"/);
   assert.match(readFileSync('app/(support)/support/support-shell.tsx', 'utf8'), /href="\/support\/gebruik"/);
 });
+
+test('zonder sessie: een inlogknop, geen doodlopend scherm (zoals #138)', () => {
+  const src = readFileSync('app/(support)/support/gebruik/page.tsx', 'utf8');
+  assert.match(src, /status === 'laden' \? <p role="status">Sessie controleren…<\/p>/);
+  assert.match(src, /<Link href="\/support" className=\{styles\.quietButton\}>Inloggen<\/Link>/);
+});

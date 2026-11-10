@@ -15,7 +15,7 @@ import styles from '../support-design.module.css';
 import local from './gebruik.module.css';
 
 export default function GebruikPage() {
-  const { token, isCurrentToken } = useSupportToken();
+  const { token, status, isCurrentToken } = useSupportToken();
   return <main className={styles.page}><div className={styles.content}>
     <p><Link href="/support" style={{ color: 'var(--support-link, #a8ceff)' }}>← Rijscholen</Link></p>
     <header className={styles.hero}><div>
@@ -23,7 +23,9 @@ export default function GebruikPage() {
       <h1>Gebruik van de app.</h1>
       <p className={styles.subtitle}>Welke schermen worden geopend en waarop wordt getikt. Alleen aantallen — nooit wie wat deed.</p>
     </div></header>
-    {token ? <Gebruik token={token} isCurrentToken={isCurrentToken} /> : <p>Log in met je supportaccount en tweefactor om dit overzicht te openen.</p>}
+    {token ? <Gebruik token={token} isCurrentToken={isCurrentToken} />
+      : status === 'laden' ? <p role="status">Sessie controleren…</p>
+      : <div><p>Je supportsessie is verlopen of je bent niet ingelogd. Log in met je supportaccount en tweefactor om dit overzicht te openen.</p><Link href="/support" className={styles.quietButton}>Inloggen</Link></div>}
   </div></main>;
 }
 
