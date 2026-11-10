@@ -8,11 +8,15 @@ import local from './learners.module.css';
 const date=(value:string|null)=>value?new Date(value).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short'}):'Nog niet ingelogd';
 /** Mount the private overview only while a current MFA session exists. */
 export default function LearnersPage(){
- const {token,isCurrentToken}=useSupportToken();
+ const {token,status,isCurrentToken}=useSupportToken();
  return <main className={styles.page}><div className={styles.content}>
   <header className={styles.hero}><div><p className={styles.eyebrow}>RIBBA · ALLEEN EIGENAAR</p><h1>Leerlingen in beeld.</h1><p className={styles.subtitle}>Van account naar een rijschool. Zie waar leerlingen staan en waar hulp nodig kan zijn.</p></div></header>
-  {token?<AuthenticatedLearners token={token} isCurrentToken={isCurrentToken}/>:<p>Log in met je eigenaaraccount en tweefactor om dit overzicht te openen.</p>}
+  {token?<AuthenticatedLearners token={token} isCurrentToken={isCurrentToken}/>:status==='laden'?<p role="status">Sessie controleren…</p>:<SignedOut/>}
  </div></main>;
+}
+/** Without a current MFA session the shell hides its navigation, so this page must offer the way back to the login itself. */
+function SignedOut(){
+ return <div><p>Je supportsessie is verlopen of je bent niet ingelogd. Log in met je eigenaaraccount en tweefactor om dit overzicht te openen.</p><Link href="/support" className={styles.quietButton}>Inloggen</Link></div>;
 }
 /** Keep queries, reasons, rows and requests inside the session boundary so signout unmounts all private state. */
 function AuthenticatedLearners({token,isCurrentToken}:{token:string;isCurrentToken:(token:string)=>boolean}){
