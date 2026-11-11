@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {useSupportToken} from '../../client';
-import {learnerFilters,learnerFilterLabels,type LearnerFilter,type LearnerList,type LearnerSummary} from '@/lib/owner-learners';
+import {learnerFilters,learnerFilterLabels,zelfAangemeldUitleg,type LearnerFilter,type LearnerList,type LearnerSummary} from '@/lib/owner-learners';
 import styles from '../../support-design.module.css';
 import local from './learners.module.css';
 const date=(value:string|null)=>value?new Date(value).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short'}):'Nog niet ingelogd';
@@ -47,10 +47,11 @@ function AuthenticatedLearners({token,isCurrentToken}:{token:string;isCurrentTok
  const data=visible?.data;const rows=current?.data;
  const loading=!!request&&request.token===token&&!current;
  return <>{!data?<div role="status"><p>{visible?.error??'Leerlingmetingen laden…'}</p>{visible?.error&&<button className={styles.quietButton} onClick={()=>retry(n=>n+1)}>Opnieuw proberen</button>}</div>:<>
-   <div className={styles.stats}>
+   <div className={`${styles.stats} ${local.stats4}`}>
     <article className={styles.stat}><span>Nieuwe accounts · 30 dagen</span><strong>{data.metrics.new_30}</strong><small>{data.metrics.previous_new_30} in de 30 dagen daarvoor</small></article>
     <article className={styles.stat}><span>Zonder actieve rijschool</span><strong>{data.metrics.without_active_school}</strong><small>{data.metrics.no_school} zonder schoolkoppeling · {data.metrics.waitlist} op de wachtlijst</small></article>
     <article className={styles.stat}><span>Nog niet ingelogd</span><strong>{data.metrics.never_signed_in}</strong><small>Account bestaat, nog geen login geregistreerd</small></article>
+    <article className={styles.stat} data-zelf-aangemeld><span>Zelf aangemeld · zonder uitnodiging</span><strong>{data.metrics.registration_hint}</strong><small>{zelfAangemeldUitleg(data.metrics)}</small></article>
    </div>
    <section className={`${styles.schoolPanel} ${local.panel}`} aria-labelledby="growth-title"><h2 id="growth-title">Registraties · laatste 30 dagen</h2><div className={local.chart} role="img" aria-label={`Registraties per dag; totaal ${data.trend.reduce((sum,d)=>sum+d.accounts,0)} op deze 30 kalenderdagen. De exacte aantallen staan onder Dagcijfers.`}>{data.trend.map(d=><div key={d.day} title={`${d.day}: ${d.accounts}`} style={{height:`${Math.max(3,d.accounts/Math.max(1,...data.trend.map(t=>t.accounts))*100)}%`,opacity:d.accounts?1:.25}}/>)}</div>
     <details><summary>Dagcijfers bekijken</summary><div className={local.days}>{data.trend.map(d=><span key={d.day}>{d.day}: <b>{d.accounts}</b></span>)}</div></details>
