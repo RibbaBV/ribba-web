@@ -60,7 +60,7 @@ test('internal-only account links are excluded; an external-school link keeps th
 test('a missing source or unknown school exclusions cannot turn into a successful zero measurement',()=>{
  const s=base();s.states.events={status:'truncated'};s.events=[event('a','Theorie')];
  const m=metric(buildConversionReport(s,7,'leerlingen'),'activation');assert.equal(m.current,null);assert.ok(m.daily.every(p=>p.reason==='unavailable'));
- s.states.schools={status:'unavailable'};const missing=buildConversionReport(s,7,'leerlingen');assert.equal(missing.quality.users,0);assert.equal(missing.northStar.users,null);assert.equal(missing.northStar.active,null);
+ s.states.schools={status:'unavailable'};const missing=buildConversionReport(s,7,'leerlingen');assert.equal(missing.quality.users,null);assert.equal(missing.northStar.users,null);assert.equal(missing.northStar.active,null);
 });
 test('payment receipts are deduplicated and are never represented as money or first-payment conversion',()=>{
  const s=base();s.receipts=[{id:'older',school_id:'e',provider:'stripe',event_kind:'customer.subscription.created',status:'succeeded',side_effect_stage:'completed',first_received_at:'2026-11-01T12:00:00Z',external_event_id:'old'},...['a','b'].map(id=>({id,school_id:'e',provider:'stripe',event_kind:'invoice.paid',status:'succeeded',side_effect_stage:'completed',first_received_at:'2026-11-10T12:00:00Z',external_event_id:'same-invoice-event'}))];
@@ -84,4 +84,34 @@ test('paginated reads discard incomplete data rather than undercounting a failed
 test('growth API is owner-only, audit-gated and reads no contact fields',()=>{
  const route=readFileSync('app/api/support/gebruik/conversies/route.ts','utf8');assert.match(route,/withSupportAccess/);assert.match(route,/ownerOnly: true/);assert.match(route,/action: 'appconversies.view'/);assert.match(route,/level: 0/);
  const sources=readFileSync('lib/conversion-sources.ts','utf8');assert.doesNotMatch(sources,/\.select\(['"]\*/);assert.doesNotMatch(sources,/email|first_name|phone|payload|recipient/);
+});
+
+test('period comparison aligns closed offsets and excludes the previous counterpart of today',()=>{
+ const s=base();
+ s.events=[event('history','Home','2026-10-20T12:00:00Z')];
+ // Current Nov 6..12: only Nov 6..11 closed. Previous Oct 30..Nov 5: omit Nov 5.
+ for(const day of ['2026-10-30','2026-10-31','2026-11-01','2026-11-02','2026-11-03','2026-11-04']) {
+  s.events.push(event(day,'Theorie',day+'T12:00:00Z'));
+ }
+ s.events.push(event('unpaired','Theorie','2026-11-05T12:00:00Z'),event('unpaired','TheorieHoofdstuk','2026-11-05T12:01:00Z'));
+ for(const day of ['2026-11-06','2026-11-07','2026-11-08','2026-11-09','2026-11-10','2026-11-11']) {
+  s.events.push(event(day,'Theorie',day+'T12:00:00Z'),event(day,'TheorieHoofdstuk',day+'T12:01:00Z'));
+ }
+ const m=metric(buildConversionReport(s,7,'leerlingen'),'activation');
+ assert.equal(m.current,100);assert.equal(m.previous,0);assert.equal(m.comparisonCurrent,100);assert.equal(m.delta,100);assert.equal(m.previousDays,6);
+ // D1 additionally excludes Nov 11 (its return day is still open).
+ const r=metric(buildConversionReport(s,7,'leerlingen'),'retention1');assert.equal(r.previousDays,5);
+});
+test('partial history compares only shared covered offsets, with a separately labelled current rate',()=>{
+ const s=base();s.events=[event('history','Home','2026-11-02T12:00:00Z'),event('p','Theorie','2026-11-03T12:00:00Z'),event('c','Theorie','2026-11-10T12:00:00Z'),event('c','TheorieHoofdstuk','2026-11-10T12:01:00Z'),event('other','Theorie','2026-11-06T12:00:00Z')];
+ const m=metric(buildConversionReport(s,7,'leerlingen'),'activation');
+ assert.equal(m.current,50);assert.equal(m.comparisonCurrent,100);assert.equal(m.previous,0);assert.equal(m.delta,100);assert.equal(m.previousDays,2);
+ s.events=s.events.filter(e=>e.user_id!=='p');assert.equal(metric(buildConversionReport(s,7,'leerlingen'),'activation').delta,null);
+});
+test('quality totals distinguish ready empty sources from unavailable and truncated reads',()=>{
+ const s=base();assert.deepEqual(Object.fromEntries(Object.entries(buildConversionReport(s,7,'leerlingen').quality).slice(0,3)),{events:0,users:0,unknownRoleUsers:0});
+ for(const status of ['unavailable','truncated']) {
+  s.states.events={status};s.events=[event('partial','Home')];const q=buildConversionReport(s,7,'leerlingen').quality;
+  assert.equal(q.events,null);assert.equal(q.users,null);assert.equal(q.unknownRoleUsers,null);
+ }
 });

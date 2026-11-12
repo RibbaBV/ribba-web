@@ -50,7 +50,7 @@ Referral en omzet zijn platformbrede rijschoolmetriek, ook bij selectie Leerling
 - De eerste beschikbare app-meetdag telt als onvolledig; daarvoor geen nullen invullen. Vandaag en nog niet gesloten retentiedagen zijn voorlopig. D7 van een recent cohort blijft onbekend.
 - Periodeconversie = som van complete dagtellers / som van complete dagnoemers. Dit zijn dagcohortstarts (dezelfde gebruiker kan op verschillende dagen starten), niet unieke personen over de hele periode.
 - 7-daags gemiddelde = gewogen somteller/somnoemer van zeven complete dagen, nooit gemiddelde van dagpercentages. Geen volledige zeven dagen: geen lijn.
-- Vergelijking toont procentpunten, niet een relatieve procentuele lift. Alleen evenveel volledig gedekte, gesloten dagen in beide vensters; ontbrekende voorgaande historie betekent geen vergelijkingscijfer.
+- Vergelijking toont procentpunten, niet een relatieve procentuele lift. Alleen overeenkomstige vensterposities met aan beide kanten volledig gedekte, gesloten dagen. De tegenhanger van vandaag en onvolwassen cohorten vallen aan beide kanten weg. De vergelijking vermeldt beide percentages en het aantal gedeelde dagen, los van het totaal voor de huidige periode. Zonder gedeelde dekking of een bruikbare noemer volgt geen vergelijkingscijfer.
 - Nul starters geeft geen percentage. Echte 0 conversies bij N>0 geeft wel 0%. Kleine aantallen blijven met N zichtbaar, zonder bewezen experiment-/causaliteitsclaim.
 - Accounts en scholen zijn de momenteel aanwezige records, geen onveranderlijk archief; verwijderingen en imports kunnen historische aantallen wijzigen. Er wordt geen anoniem bezoek-naar-accountpercentage uit gemaakt.
 - Test/pilotscholen en `ota_id=dev` standaard uitgesloten. Interne-only leerlingkoppelingen worden ook voor accountrecords uitgesloten. Ongekoppelde testaccounts zijn niet met een naamheuristiek te herkennen en kunnen aanwezig blijven.
@@ -79,3 +79,9 @@ Referral en omzet zijn platformbrede rijschoolmetriek, ook bij selectie Leerling
 - `npm run build`: geslaagd. `npm run lint`: geen fouten; drie bestaande waarschuwingen buiten deze wijziging.
 - `node scripts/check-support-isolation.mjs`: geslaagd, nu ook expliciet voor `/support/gebruik`.
 - Browsercontrole op 1440, 1024, 768, 390 en 320 pixels: geen horizontale pagina-overflow of JavaScript-fouten; doelgroep/periode, dagkiezer, meetdoelen, lege data en gewogen-gemiddeldebediening gecontroleerd met echte geaggregeerde brondata.
+
+### Reviewcorrecties
+
+Alle vier inline bevindingen bevestigd en minimaal hersteld: onbekende eventkwaliteit is `null` (lege gereedstaande bronnen blijven 0), periodevergelijking gebruikt gekoppelde gesloten dagposities, groeiprioriteit volgt neutraal de geselecteerde proxy met bestaande bewijs-/noemerfilters, en niet-uitgerijpte cohorten behouden dagkiezer, bekende noemers en statussen zonder percentage. Regressies op volledige en gedeeltelijke vensterdekking en bronuitval toegevoegd.
+
+Hercontrole: 664 tests geslaagd, TypeScript en productiebuild geslaagd, lint zonder fouten (dezelfde drie bestaande waarschuwingen), support-isolatie geslaagd. CodeRabbit CLI is lokaal niet geïnstalleerd.

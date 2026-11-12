@@ -9,8 +9,8 @@ export type ReceiptRow = { id: string; school_id: string; provider: string; even
 export type ReferralRow = { id: string; school_id: string | null; aangemeld_op: string; verdiend_op: string | null; void_op: string | null };
 export type ConversionSources = { capturedAt: string; events: AppEventRow[]; accounts: AccountRow[]; schools: SchoolRow[]; links: StudentLinkRow[]; receipts: ReceiptRow[]; referrals: ReferralRow[]; states: Record<'events' | 'accounts' | 'schools' | 'links' | 'receipts' | 'referrals', SourceState> };
 export type DailyPoint = { day: string; numerator: number | null; denominator: number | null; value: number | null; provisional: boolean; reason: 'before_history' | 'empty' | 'maturing' | 'unavailable' | null };
-export type Metric = { id: string; title: string; stage: string; unit: 'percent' | 'count'; evidence: 'measured' | 'proxy' | 'missing'; definition: string; goal: string; next: string; daily: DailyPoint[]; current: number | null; previous: number | null; delta: number | null; numerator: number; denominator: number; sampleDays: number; previousDays: number };
-export type ConversionReport = { version: 1; capturedAt: string; days: number; segment: Segment; historyStart: string | null; metrics: Metric[]; northStar: { users: number | null; active: number | null; label: string }; quality: { events: number; users: number; unknownRoleUsers: number; firstDayPartial: boolean; sourceStates: ConversionSources['states'] }; stages: { id: string; title: string; question: string; metricId: string; target: string }[] };
+export type Metric = { id: string; title: string; stage: string; unit: 'percent' | 'count'; evidence: 'measured' | 'proxy' | 'missing'; definition: string; goal: string; next: string; daily: DailyPoint[]; current: number | null; previous: number | null; comparisonCurrent: number | null; delta: number | null; numerator: number; denominator: number; sampleDays: number; previousDays: number };
+export type ConversionReport = { version: 1; capturedAt: string; days: number; segment: Segment; historyStart: string | null; metrics: Metric[]; northStar: { users: number | null; active: number | null; label: string }; quality: { events: number | null; users: number | null; unknownRoleUsers: number | null; firstDayPartial: boolean; sourceStates: ConversionSources['states'] }; stages: { id: string; title: string; question: string; metricId: string; target: string }[] };
 const calendar = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Amsterdam', year: 'numeric', month: '2-digit', day: '2-digit' });
 export function amsterdamDay(time: string | number): string {
  const parts = calendar.formatToParts(new Date(time));
@@ -42,16 +42,23 @@ export function sameDayFunnel(events: AppEventRow[], day: string, start: (e: App
  }
  return { numerator: converted.size, denominator: first.size };
 }
-function finish(metric: Omit<Metric, 'current' | 'previous' | 'delta' | 'numerator' | 'denominator' | 'sampleDays' | 'previousDays'>, split: number, today: string): Metric {
- const complete = (points: DailyPoint[]) => points.filter(p => !p.provisional && p.reason !== 'before_history' && p.reason !== 'unavailable' && p.reason !== 'maturing' && p.day < today);
- const current = complete(metric.daily.slice(split));
- const previous = complete(metric.daily.slice(0, split));
- const n = current.reduce((n, p) => n + (p.numerator ?? 0), 0), d = current.reduce((n, p) => n + (p.denominator ?? 0), 0);
- const pn = previous.reduce((n, p) => n + (p.numerator ?? 0), 0), pd = previous.reduce((n, p) => n + (p.denominator ?? 0), 0);
- const value = !current.length ? null : metric.unit === 'count' ? n : ratio(n, d);
- // Vergelijk alleen evenveel volledige, gedekte dagen. Een ontbrekende voorgeschiedenis is geen nulmeting.
- const previousValue = previous.length === current.length && current.length > 0 ? metric.unit === 'count' ? pn : ratio(pn, pd) : null;
- return { ...metric, daily: metric.daily.slice(split), current: value, previous: previousValue, delta: value !== null && previousValue !== null ? value - previousValue : null, numerator: n, denominator: d, sampleDays: current.length, previousDays: previous.length };
+function finish(metric: Omit<Metric, 'current' | 'previous' | 'comparisonCurrent' | 'delta' | 'numerator' | 'denominator' | 'sampleDays' | 'previousDays'>, split: number, today: string): Metric {
+ const complete = (p: DailyPoint) => !p.provisional && p.reason !== 'before_history' && p.reason !== 'unavailable' && p.reason !== 'maturing' && p.day < today;
+ const currentWindow = metric.daily.slice(split), previousWindow = metric.daily.slice(0, split);
+ const current = currentWindow.filter(complete);
+ const aggregate = (points: DailyPoint[]) => {
+  if (!points.length) return null;
+  const n = points.reduce((sum, p) => sum + (p.numerator ?? 0), 0);
+  return metric.unit === 'count' ? n : ratio(n, points.reduce((sum, p) => sum + (p.denominator ?? 0), 0));
+ };
+ // Vergelijk uitsluitend overeenkomstige vensterposities met aan beide kanten volledige dekking.
+ // De tegenhanger van vandaag en nog niet uitgerijpte cohorten vallen aan beide kanten weg.
+ const aligned = currentWindow.map((p, i) => ({ current: p, previous: previousWindow[i] }))
+  .filter(pair => complete(pair.current) && pair.previous && complete(pair.previous));
+ const comparisonCurrent = aggregate(aligned.map(pair => pair.current));
+ const previousValue = aggregate(aligned.map(pair => pair.previous));
+ const n = current.reduce((sum, p) => sum + (p.numerator ?? 0), 0), d = current.reduce((sum, p) => sum + (p.denominator ?? 0), 0);
+ return { ...metric, daily: currentWindow, current: aggregate(current), previous: previousValue, comparisonCurrent, delta: comparisonCurrent !== null && previousValue !== null ? comparisonCurrent - previousValue : null, numerator: n, denominator: d, sampleDays: current.length, previousDays: aligned.length };
 }
 export function buildConversionReport(sources: ConversionSources, days: number, segment: Segment, includeInternal = false): ConversionReport {
  const today = amsterdamDay(sources.capturedAt), end = Date.parse(sources.capturedAt);
@@ -109,7 +116,7 @@ export function buildConversionReport(sources: ConversionSources, days: number, 
  for (const r of paid) { const day = amsterdamDay(r.first_received_at), ids = receiptIdsByDay.get(day) ?? new Set<string>(); ids.add(r.external_event_id); receiptIdsByDay.set(day,ids); }
  add({ ...metricBase('payment_receipts', 'Verwerkte Stripe-factuurbevestigingen', 'Omzet', 'Unieke geslaagde invoice.paid-receipts op first_received_at. Inclusief mogelijke €0-facturen; geen euro-omzet, eerste betaling of MRR.', 'Valideer bedrag, valuta, factuur-ID en creditnota/refund bij de betaalbron.', 'Koppel bedragen voordat dit als omzet of proef-naar-betaaldconversie wordt gebruikt.', 'proxy', 'count'), daily: dayKeys.map(day => receiptReady && receiptHistoryDay && day > receiptHistoryDay ? point(day, receiptIdsByDay.get(day)?.size ?? 0, null, 'count', day === today) : point(day, null, null, 'count', false, 'unavailable')) });
  const inWindow = [...byDay].filter(([day]) => day >= dayKeys[days]).flatMap(([,rows]) => rows);
- return { version: 1, capturedAt: sources.capturedAt, days, segment, historyStart, metrics: segment === 'rijscholen' ? metrics.filter(m => !['lesson','comparison','exam'].includes(m.id)) : metrics, northStar: { users: available ? uniqueUsers(inWindow.filter(meaningful)).size : null, active: available ? uniqueUsers(inWindow).size : null, label: 'Gebruikers met een waardevol scherm · gedragsproxy' }, quality: { events: events.length, users: uniqueUsers(events).size, unknownRoleUsers: uniqueUsers(events.filter(e => e.rol === 'onbekend')).size, firstDayPartial: true, sourceStates: sources.states }, stages: [
+ return { version: 1, capturedAt: sources.capturedAt, days, segment, historyStart, metrics: segment === 'rijscholen' ? metrics.filter(m => !['lesson','comparison','exam'].includes(m.id)) : metrics, northStar: { users: available ? uniqueUsers(inWindow.filter(meaningful)).size : null, active: available ? uniqueUsers(inWindow).size : null, label: 'Gebruikers met een waardevol scherm · gedragsproxy' }, quality: { events: available ? events.length : null, users: available ? uniqueUsers(events).size : null, unknownRoleUsers: available ? uniqueUsers(events.filter(e => e.rol === 'onbekend')).size : null, firstDayPartial: true, sourceStates: sources.states }, stages: [
   { id: 'awareness', title: 'Bereik', question: 'Komen de juiste mensen binnen?', metricId: 'awareness', target: 'Bezoek → app-storeklik' },
   { id: 'acquisition', title: 'Acquisitie', question: 'Worden bezoekers gebruikers?', metricId: 'acquisition', target: 'Bezoek → bevestigd account' },
   { id: 'activation', title: 'Activatie', question: 'Ervaren zij de eerste waarde?', metricId: 'activation', target: segment === 'leerlingen' ? 'Eerste onderwerp afgerond' : 'Eerste les opgeslagen' },
