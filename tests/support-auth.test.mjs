@@ -490,15 +490,15 @@ for(const [label,config,status] of [
 ])test(`learners ${label} cannot read summary or identities`,async()=>{
  for(const route of [learnersGET,learnersPOST]){
   currentClient=makeClient(config);const res=await route(learnersRequest(learnerInput));assert.equal(res.status,status);
-  assert.ok(!currentClient.rpcCalls.some(c=>['owner_learner_summary','owner_learner_list'].includes(c.naam)));
+  assert.ok(!currentClient.rpcCalls.some(c=>['owner_learner_summary','owner_learner_list_marketing'].includes(c.naam)));
  }
 });
 test('learner PII requires reason and audited level 2, only server identity is sent to DB',async()=>{
- currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_learner_list:{data:{rows:[],total:0},error:null}}});
+ currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_learner_list_marketing:{data:{rows:[],total:0},error:null}}});
  let res=await learnersPOST(learnersRequest({...learnerInput,reason:''}));assert.equal(res.status,400);
- assert.ok(!currentClient.rpcCalls.some(c=>c.naam==='owner_learner_list'));
+ assert.ok(!currentClient.rpcCalls.some(c=>c.naam==='owner_learner_list_marketing'));
  res=await learnersPOST(learnersRequest({...learnerInput,p_actor:'forged'}));assert.equal(res.status,200);
- const call=currentClient.rpcCalls.find(c=>c.naam==='owner_learner_list');assert.equal(call.args.p_actor,USER.id);
+ const call=currentClient.rpcCalls.find(c=>c.naam==='owner_learner_list_marketing');assert.equal(call.args.p_actor,USER.id);
  const log=currentClient.logs.find(l=>l.result==='ok');assert.equal(log.level,2);assert.equal(log.reason,learnerInput.reason);
  assert.ok(!JSON.stringify(currentClient.logs).includes('private@example.test'));
  assert.match(res.headers.get('cache-control'),/no-store/);
@@ -506,6 +506,34 @@ test('learner PII requires reason and audited level 2, only server identity is s
 test('learner endpoint refuses missing MFA and anonymous requests',async()=>{
  for(const [auth,status] of [[null,401],[`Bearer ${token('aal1')}`,403],[`Bearer ${token('aal2',{amr:[{method:'totp',timestamp:0}]})}`,403]]){
   currentClient=makeClient();const res=await learnersPOST(learnersRequest(learnerInput,auth));assert.equal(res.status,status);
-  assert.ok(!currentClient.rpcCalls.some(c=>c.naam==='owner_learner_list'));
+  assert.ok(!currentClient.rpcCalls.some(c=>c.naam==='owner_learner_list_marketing'));
  }
+});
+
+const {GET:marketingGET}=await import('../app/api/support/dashboard/marketing/route.ts');
+for(const [label,config,status] of [
+ ['non-owner',{rpc:{is_platform_owner:{data:false,error:null}}},403],
+ ['audit failure',{logError:'unavailable',rpc:{is_platform_owner:{data:true,error:null}}},503],
+ ['owner lookup failure',{rpc:{is_platform_owner:{data:null,error:{message:'broken'}}}},503],
+])test(`marketing ${label} fails closed`,async()=>{
+ currentClient=makeClient(config);
+ const response=await marketingGET(req(`Bearer ${token('aal2')}`));
+ assert.equal(response.status,status);
+ assert.ok(!currentClient.rpcCalls.some(c=>c.naam==='owner_learner_marketing_summary'));
+});
+test('marketing requires login and fresh MFA, never returns cached data',async()=>{
+ for(const auth of [undefined,`Bearer ${token('aal1')}`,`Bearer ${token('aal2',{amr:[{method:'totp',timestamp:1}]})}`]){
+  currentClient=makeClient();const response=await marketingGET(req(auth));
+  assert.ok([401,403].includes(response.status));
+  assert.ok(!currentClient.rpcCalls.some(c=>c.naam==='owner_learner_marketing_summary'));
+ }
+});
+test('marketing summary binds verified owner and sends nothing',async()=>{
+ const summary={sending_enabled:false,groups:[]};
+ currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_learner_marketing_summary:{data:summary,error:null}}});
+ const response=await marketingGET(req(`Bearer ${token('aal2')}`));
+ assert.equal(response.status,200);assert.deepEqual(response.body,summary);
+ assert.match(response.headers.get('cache-control'),/no-store/);
+ assert.deepEqual(currentClient.rpcCalls.find(c=>c.naam==='owner_learner_marketing_summary').args,{p_actor:USER.id});
+ assert.ok(currentClient.logs.some(l=>l.action==='owner.marketing.summary'));
 });

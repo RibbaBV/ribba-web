@@ -1,3 +1,4 @@
+import type {MarketingStatus} from './learner-marketing';
 export const learnerFilters = ['without_active','all','none','waitlist','active','graduated','inactive','never_signed_in'] as const;
 export type LearnerFilter = typeof learnerFilters[number];
 export const learnerFilterLabels: Record<LearnerFilter,string> = {
@@ -10,7 +11,7 @@ export interface LearnerSummary {
 }
 export interface LearnerList {
  total:number;page:number;page_size:number;
- rows:{user_id:string;email:string|null;name:string|null;name_source:'learner_profile'|'school_record'|null;registered_at:string;last_sign_in_at:string|null;registration_hint:boolean;profile_complete:boolean;school_state:'none'|'waitlist'|'active'|'graduated'|'inactive';schools:{id:string;name:string;status:string}[]}[];
+ rows:{marketing?:{status:MarketingStatus;eligible:boolean;updated_at:string|null};user_id:string;email:string|null;name:string|null;name_source:'learner_profile'|'school_record'|null;registered_at:string;last_sign_in_at:string|null;registration_hint:boolean;profile_complete:boolean;school_state:'none'|'waitlist'|'active'|'graduated'|'inactive';schools:{id:string;name:string;status:string}[]}[];
 }
 /** Validate bounded owner searches and require an auditable reason before returning normalized input. */
 export function parseLearnerQuery(value:unknown): {filter:LearnerFilter;query:string;page:number;reason:string}|null {
