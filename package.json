@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^6.8.0",
-    "@stripe/stripe-js": "^9.12.1",
+    "@stripe/stripe-js": "^10.2.1",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.100.0",
     "next": "16.2.12",
