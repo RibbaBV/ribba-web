@@ -23,6 +23,7 @@ import {
   watGebeurtErNuHtml,
   type UitnodigingsUitkomst,
 } from '@/lib/register-uitnodiging';
+import { sendAdminNotification, studentRegisteredInfo } from '@/lib/admin-notifications';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -361,6 +362,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Melding aan het team. Tot 16 nov 2026 zag het team een nieuwe leerling
+    // pas bij het openen van de supportpagina; de school en de leerling kregen
+    // wél mail. Zonder contactgegevens van de leerling: die zijn van de school.
+    // Vangt zelf alle fouten af; de registratie is op dit punt al gelukt.
+    await sendAdminNotification('student_registered', studentRegisteredInfo({
+      schoolName: school.name,
+      studentName: `${first_name.trim()} ${last_name.trim()}`,
+      city: city.trim(),
+      licenseType: license_type,
+      statusLabel: statusLabel(status),
+      bestaand: Boolean(existingStudent),
+      uitnodiging: uitnodiging.soort,
+    }));
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Registration error:', error);
