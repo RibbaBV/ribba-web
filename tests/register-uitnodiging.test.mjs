@@ -242,8 +242,8 @@ describe('POST /api/register', () => {
     assert.equal(functieAanroepen[0].init.headers['x-internal-secret'], 'test-intern-geheim');
     assert.deepEqual(functieAanroepen[0].body, { studentId: 's-nieuw', email: 'arda@voorbeeld.nl', bron: 'web-inschrijving', mailVariant: 'inschrijving' });
     // Eén mail naar de leerling (die van de school, via de functie); wij sturen
-    // alleen nog de melding aan de school.
-    assert.equal(mails.length, 1);
+    // alleen nog de melding aan de school — plus de teammelding (16 nov 2026).
+    assert.equal(mails.length, 2);
     assert.equal(leerlingMail(), undefined);
     assert.match(schoolMail().html, /uitnodiging voor de Ribba app ontvangen/);
   });
@@ -274,7 +274,7 @@ describe('POST /api/register', () => {
     const res = await POST(verzoek());
     assert.equal(res.status, 200, 'de inschrijving is gelukt; de uitnodiging is een losse uitkomst');
     assert.equal(functieAanroepen.length, 1);
-    assert.equal(mails.length, 2);
+    assert.equal(mails.length, 3, 'leerling, school en de teammelding');
     assert.match(leerlingMail().html, /Zodra je rijschool je activeert/);
     assert.match(schoolMail().html, /kon niet worden verstuurd/);
     assert.doesNotMatch(schoolMail().html, /Resend/);

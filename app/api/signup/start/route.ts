@@ -54,6 +54,7 @@ import { INSCHRIJFPLAN } from '@/lib/signup-plan';
 import { JAAR_MET_KORTING_MELDING, resolveSignupOffer } from '@/lib/signup-offer';
 import { parseBillingInterval } from '@/lib/plan-pricing';
 import { maakOfferDeps } from '@/lib/signup-offer-deps';
+import { sendAdminNotification, signupStartedInfo } from '@/lib/admin-notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -252,6 +253,7 @@ export async function POST(request: NextRequest) {
     };
 
     let gevondenId: string | null = null;
+    let hervat = false;
     const { data: nieuw, error: insertFout } = await db
       .from('pending_registrations').insert(rij).select('id').single();
 
@@ -278,6 +280,7 @@ export async function POST(request: NextRequest) {
         );
       }
       gevondenId = bestaand.id;
+      hervat = true;
     } else {
       gevondenId = nieuw?.id ?? null;
     }
@@ -290,6 +293,31 @@ export async function POST(request: NextRequest) {
       return fout('Er ging iets mis. Probeer het opnieuw.', 500);
     }
     const pendingId: string = gevondenId;
+
+    // ── 5b. Melding aan het team ─────────────────────────────────────────
+    // Vanaf hier bestaat er een rijschool die wil, maar nog niet heeft
+    // betaald. Tot 16 nov 2026 hoorde niemand daarvan: de eerste melding kwam
+    // pas ná een geslaagde Checkout, en wie daar afhaakte verdween stil
+    // (Rijschool Marok, 11 nov; Rijschool Urk, 9 sep). Daarom nu meteen een
+    // mail, mét telefoonnummer, zodat er gebeld kan worden.
+    //
+    // Loopt parallel aan het aanmaken van de Checkout en wordt pas vlak vóór
+    // het antwoord afgewacht. `sendAdminNotification` vangt zelf elke fout af
+    // en heeft een eigen timeout: een hikkende mailprovider houdt nooit een
+    // inschrijving op.
+    const melding = sendAdminNotification('signup_started', signupStartedInfo({
+      schoolName: rij.school_name,
+      email: emailNorm,
+      city: rij.city,
+      plan: INSCHRIJFPLAN,
+      interval,
+      contactName: `${rij.first_name} ${rij.last_name}`,
+      phone: rij.phone,
+      promoCode: toegepastePromocode,
+      attribution: signupAttribution,
+      hervat,
+      geldigUren: PENDING_GELDIG_UREN,
+    }));
 
     // ── 6. Checkout Session ──────────────────────────────────────────────
     // TWEE MECHANISMEN DIE ELKAAR UITSLUITEN — zie signup-offer.ts.
@@ -355,6 +383,7 @@ export async function POST(request: NextRequest) {
       .update({ stripe_checkout_session_id: session.id })
       .eq('id', pendingId);
 
+    await melding;
     return NextResponse.json({ checkoutUrl: session.url, pendingRegistrationId: pendingId }, { status: 200 });
   } catch (e) {
     console.error('signup/start onverwachte fout:', e);

@@ -5,6 +5,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { logBillingEvent } from './billing-events';
 import { DOMAIN } from './domains';
+import type { SignupAttribution } from './signup-attribution';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || 'team@ribba.nl';
@@ -14,6 +15,8 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || DOMAIN.account;
 const LOGO_URL = `${BASE_URL}/ribba-logo.png`;
 
 export type AdminEventType =
+  | 'signup_started'
+  | 'student_registered'
   | 'school_registered'
   | 'subscription_activated'
   | 'subscription_cancelled'
@@ -107,6 +110,22 @@ interface EventLabel {
 
 function eventLabel(type: AdminEventType): EventLabel {
   switch (type) {
+    case 'signup_started':
+      return {
+        subject: 'Inschrijving gestart, nog niet betaald',
+        title: 'Inschrijving gestart',
+        pillLabel: 'Nog niet afgerond',
+        pillBg: '#FEF9C3',
+        pillColor: '#854D0E',
+      };
+    case 'student_registered':
+      return {
+        subject: 'Nieuwe leerling aangemeld',
+        title: 'Nieuwe leerling',
+        pillLabel: 'Leerling',
+        pillBg: '#DBEAFE',
+        pillColor: '#1E40AF',
+      };
     case 'school_registered':
       return {
         subject: 'Nieuwe rijschool aangemeld',
@@ -290,6 +309,9 @@ export async function sendAdminNotification(type: AdminEventType, school: School
         subject: `${ev.subject}: ${school.name}`,
         html,
       }),
+      // Een melding is bijzaak: hangt Resend, dan mag de inschrijving of
+      // registratie die hem veroorzaakte daar niet op wachten.
+      signal: AbortSignal.timeout(8_000),
     });
 
     // Body één keer lezen: id op success (voor billing_events),
@@ -328,4 +350,107 @@ export async function sendAdminNotification(type: AdminEventType, school: School
   } catch (e) {
     console.error('admin-notifications: unexpected error', e);
   }
+}
+
+// ── Meldingen rond inschrijven en registreren ───────────────────────────────
+//
+// Twee momenten waarop tot 16 nov 2026 niemand iets hoorde:
+//
+//   1. Een rijschool vult /registreren in en gaat naar Stripe Checkout, maar
+//      rondt niet af. De pending-registratie blijft 24 uur staan en verloopt
+//      stil. Rijschool Marok (11 nov) en Rijschool Urk (9 sep) verdwenen zo
+//      uit beeld; de enige melding kwam pas ná een geslaagde betaling.
+//   2. Een leerling schrijft zich via de website in bij een rijschool. De
+//      school krijgt mail, de leerling krijgt mail, het team niets.
+//
+// De bouwers hieronder zijn puur: ze maken van losse velden het `SchoolInfo`
+// dat `sendAdminNotification` verwacht, zodat ze zonder netwerk te testen zijn.
+
+const INTERVAL_LABEL: Record<string, string> = { maand: 'maandelijks', jaar: 'jaarlijks' };
+
+function herkomstRijen(attribution: SignupAttribution | null | undefined): Record<string, string | undefined> {
+  if (!attribution) return {};
+  const campagne = [attribution.utm_source, attribution.utm_medium, attribution.utm_campaign]
+    .filter((v): v is string => typeof v === 'string' && v.trim() !== '')
+    .join(' / ');
+  return {
+    Herkomst: attribution.landing_page,
+    Verwijzer: attribution.referrer,
+    Campagne: campagne || undefined,
+  };
+}
+
+export interface SignupStartedInput {
+  schoolName: string;
+  email: string;
+  city: string;
+  plan: string;
+  interval: string;
+  contactName: string;
+  phone: string;
+  promoCode: string | null;
+  attribution: SignupAttribution | null | undefined;
+  /** Dezelfde rijschool klikte eerder al op Betalen; de bestaande rij is hergebruikt. */
+  hervat: boolean;
+  geldigUren: number;
+}
+
+/** Een rijschool heeft het inschrijfformulier afgerond en staat nu bij Stripe Checkout. */
+export function signupStartedInfo(i: SignupStartedInput): SchoolInfo {
+  return {
+    name: i.schoolName,
+    email: i.email,
+    city: i.city,
+    billing_plan: i.plan,
+    extra: {
+      Contact: i.contactName,
+      Telefoon: i.phone,
+      Betaling: INTERVAL_LABEL[i.interval] ?? i.interval,
+      Kortingscode: i.promoCode ?? undefined,
+      ...herkomstRijen(i.attribution),
+      Poging: i.hervat ? 'opnieuw gestart (eerdere poging niet afgerond)' : 'eerste poging',
+      Status: `Formulier ingevuld, Checkout nog niet afgerond. De inschrijflink is ${i.geldigUren} uur geldig.`,
+    },
+  };
+}
+
+export interface StudentRegisteredInput {
+  schoolName: string;
+  studentName: string;
+  city: string;
+  licenseType: string;
+  statusLabel: string;
+  /** De school had deze leerling al aangemaakt; het formulier vulde alleen aan. */
+  bestaand: boolean;
+  uitnodiging: 'niet' | 'uitgenodigd' | 'mislukt';
+}
+
+/**
+ * Een leerling heeft zich via de website bij een rijschool ingeschreven.
+ *
+ * Bewust zonder e-mailadres en telefoonnummer van de leerling: die horen bij
+ * de rijschool, die ze in haar eigen melding al krijgt. Het team hoeft alleen
+ * te weten dát er iemand is aangemeld, waar, en of de keten werkte.
+ *
+ * Ook bewust zonder `id`: met een school-id schrijft `sendAdminNotification`
+ * een regel in `billing_events`, en een leerlingregistratie is geen
+ * billinggebeurtenis van de school.
+ */
+export function studentRegisteredInfo(i: StudentRegisteredInput): SchoolInfo {
+  const app = i.uitnodiging === 'uitgenodigd'
+    ? 'uitnodiging voor de app verstuurd'
+    : i.uitnodiging === 'mislukt'
+      ? 'uitnodiging voor de app MISLUKT, school is geïnformeerd'
+      : 'geen uitnodiging (school beslist zelf)';
+  return {
+    name: i.schoolName,
+    extra: {
+      Leerling: i.studentName,
+      Plaats: i.city,
+      Rijbewijs: i.licenseType,
+      Status: i.statusLabel,
+      Rij: i.bestaand ? 'bestaande leerlingrij aangevuld' : 'nieuw aangemaakt',
+      App: app,
+    },
+  };
 }
