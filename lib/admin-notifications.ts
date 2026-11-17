@@ -16,6 +16,7 @@ const LOGO_URL = `${BASE_URL}/ribba-logo.png`;
 
 export type AdminEventType =
   | 'signup_started'
+  | 'signup_abandoned'
   | 'student_registered'
   | 'school_registered'
   | 'subscription_activated'
@@ -24,7 +25,7 @@ export type AdminEventType =
   | 'recurring_payment_failed'
   | 'subscription_suspended';
 
-interface SchoolInfo {
+export interface SchoolInfo {
   id?: string;
   name: string;
   email?: string | null;
@@ -117,6 +118,14 @@ function eventLabel(type: AdminEventType): EventLabel {
         pillLabel: 'Nog niet afgerond',
         pillBg: '#FEF9C3',
         pillColor: '#854D0E',
+      };
+    case 'signup_abandoned':
+      return {
+        subject: 'Inschrijving na 48 uur nog niet afgerond',
+        title: 'Inschrijving niet afgerond',
+        pillLabel: 'Bellen?',
+        pillBg: '#FEE2E2',
+        pillColor: '#991B1B',
       };
     case 'student_registered':
       return {
