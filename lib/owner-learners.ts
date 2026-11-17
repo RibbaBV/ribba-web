@@ -12,13 +12,18 @@ export interface LearnerList {
  total:number;page:number;page_size:number;
  rows:{user_id:string;email:string|null;name:string|null;name_source:'learner_profile'|'school_record'|null;registered_at:string;last_sign_in_at:string|null;registration_hint:boolean;profile_complete:boolean;school_state:'none'|'waitlist'|'active'|'graduated'|'inactive';schools:{id:string;name:string;status:string}[]}[];
 }
-/** Validate bounded owner searches and require an auditable reason before returning normalized input. */
-export function parseLearnerQuery(value:unknown): {filter:LearnerFilter;query:string;page:number;reason:string}|null {
+// Inzagereden (18 nov 2026, besluit Önder): de eigenaar typt geen reden meer.
+// De server zet een vaste reden in platform_access_log; wie, wanneer en welke
+// leerling blijven dus vastliggen. Het vrije tekstveld is weg.
+export const LIJST_INZAGE_REDEN='Eigenaar bekijkt het leerlingenoverzicht';
+export const KAART_INZAGE_REDEN='Eigenaar bekijkt een leerlingkaart';
+/** Validate bounded owner searches before returning normalized input. */
+export function parseLearnerQuery(value:unknown): {filter:LearnerFilter;query:string;page:number}|null {
  if(!value||typeof value!=='object')return null;
  const v=value as Record<string,unknown>;
  if(typeof v.filter!=='string'||!learnerFilters.includes(v.filter as LearnerFilter)||typeof v.query!=='string'||v.query.length>100
- ||typeof v.page!=='number'||!Number.isInteger(v.page)||v.page<0||v.page>10000||typeof v.reason!=='string'||v.reason.trim().length<10||v.reason.length>300)return null;
- return {filter:v.filter as LearnerFilter,query:v.query.trim(),page:v.page,reason:v.reason.trim()};
+ ||typeof v.page!=='number'||!Number.isInteger(v.page)||v.page<0||v.page>10000)return null;
+ return {filter:v.filter as LearnerFilter,query:v.query.trim(),page:v.page};
 }
 /** Zelf aangemeld (11 nov 2026): accounts met de markering van de zelfstandige registratie, zonder uitnodiging van een rijschool. De twee nieuwe metingen bestaan pas na ribbaPro 20261111090000; tot dan alleen het bekende deel. */
 export function zelfAangemeldUitleg(m:LearnerSummary['metrics']):string{
@@ -40,13 +45,10 @@ export interface LearnerDetail {
  theory:{topics_visited:number;topics_completed:number;last_visit:string|null};
 }
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-/** Valideer het id uit de URL en de inzagereden uit het formulier; alles anders wordt geweigerd. */
-export function parseLearnerDetailQuery(id:unknown,value:unknown):{userId:string;reason:string}|null{
+/** Valideer het id uit de URL; alles anders wordt geweigerd. */
+export function parseLearnerDetailQuery(id:unknown):{userId:string}|null{
  if(typeof id!=='string'||!UUID.test(id))return null;
- if(!value||typeof value!=='object')return null;
- const v=value as Record<string,unknown>;
- if(typeof v.reason!=='string'||v.reason.trim().length<10||v.reason.length>300)return null;
- return {userId:id.toLowerCase(),reason:v.reason.trim()};
+ return {userId:id.toLowerCase()};
 }
 /** Korte, eerlijke samenvatting van de activiteit voor bovenaan de kaart. */
 export function activiteitSamenvatting(a:LearnerDetail['activity']):string{

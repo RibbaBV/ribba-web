@@ -19,31 +19,26 @@ export default function LearnerDetailPage({params}:{params:Promise<{id:string}>}
 function SignedOut(){
  return <div><p>Je supportsessie is verlopen of je bent niet ingelogd. Log in met je eigenaaraccount en tweefactor om deze kaart te openen.</p><Link href="/support" className={styles.quietButton}>Inloggen</Link></div>;
 }
-/** Reason, request and card live below the session boundary so signout unmounts all private state. */
+/** Request and card live below the session boundary so signout unmounts all private state. The card loads at once; the server logs the fixed reason. */
 function AuthenticatedDetail({id,token,isCurrentToken}:{id:string;token:string;isCurrentToken:(token:string)=>boolean}){
- const [reason,setReason]=useState('');
- const [request,setRequest]=useState<{token:string;reason:string}|null>(null);
- const [card,setCard]=useState<{request:typeof request;data?:LearnerDetail;error?:string}|null>(null);
+ const [attempt,retry]=useState(0);
+ // Eén sleutel per poging; de kaart hoort bij precies die sleutel, zodat een
+ // oude respons nooit over een nieuwe sessie heen valt.
+ const key=`${token}:${attempt}`;
+ const [card,setCard]=useState<{key:string;data?:LearnerDetail;error?:string}|null>(null);
  useEffect(()=>{
-  if(!request||!token||request.token!==token)return;
+  if(!token)return;
   const controller=new AbortController();
-  void fetch(`/api/support/dashboard/learners/${encodeURIComponent(id)}`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({reason:request.reason}),cache:'no-store',signal:controller.signal})
-   .then(async res=>({res,body:await res.json()})).then(({res,body})=>{if(!controller.signal.aborted&&isCurrentToken(token))setCard({request,...(res.ok?{data:body}:{error:body.error??'Laden mislukt.'})});})
-   .catch(()=>{if(!controller.signal.aborted&&isCurrentToken(token))setCard({request,error:'Geen verbinding. Probeer opnieuw.'});});
+  void fetch(`/api/support/dashboard/learners/${encodeURIComponent(id)}`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:'{}',cache:'no-store',signal:controller.signal})
+   .then(async res=>({res,body:await res.json()})).then(({res,body})=>{if(!controller.signal.aborted&&isCurrentToken(token))setCard({key,...(res.ok?{data:body}:{error:body.error??'Laden mislukt.'})});})
+   .catch(()=>{if(!controller.signal.aborted&&isCurrentToken(token))setCard({key,error:'Geen verbinding. Probeer opnieuw.'});});
   return()=>controller.abort();
- },[id,token,request,isCurrentToken]);
- const current=request?.token===token&&card?.request===request?card:null;
- const loading=!!request&&request.token===token&&!current;
+ },[id,token,key,isCurrentToken]);
+ const current=card?.key===key?card:null;
  const d=current?.data;
  const max=d?Math.max(1,...d.activity.days.map(x=>x.events)):1;
  return <>
-  <section className={`${styles.schoolPanel} ${local.panel}`}><h2>Inzage</h2><p className={styles.subtitle}>Deze kaart toont wat één leerling in de app doet. Geef aan waarom je kijkt; je inzage wordt vastgelegd. Zet geen leerlinggegevens in de reden.</p>
-   <form className={local.form} onSubmit={e=>{e.preventDefault();if(token)setRequest({token,reason:reason.trim()});}}>
-    <label className={local.reason}>Reden voor inzage<input value={reason} onChange={e=>setReason(e.target.value)} minLength={10} maxLength={300} required placeholder="Bijvoorbeeld: nagaan of deze leerling na de quiz terugkomt" autoComplete="off"/></label>
-    <button className={styles.quietButton} disabled={reason.trim().length<10||loading}>{loading?'Laden…':'Kaart bekijken'}</button>
-   </form>
-   {current?.error&&<p role="alert" className={styles.error}>{current.error}</p>}
-  </section>
+  {!d&&<div role="status"><p>{current?.error??'Leerlingkaart laden…'}</p>{current?.error&&<button className={styles.quietButton} onClick={()=>retry(n=>n+1)}>Opnieuw proberen</button>}</div>}
   {d&&<>
    <section className={`${styles.schoolPanel} ${local.panel}`} aria-labelledby="wie"><h2 id="wie">{d.account.name??'Naam niet eenduidig beschikbaar'}</h2>
     <p>{d.account.email??'Geen e-mailadres beschikbaar'} · <span className={styles.badgeAttention}>{learnerFilterLabels[d.account.school_state as LearnerFilter]}</span></p>
