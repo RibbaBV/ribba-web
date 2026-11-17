@@ -67,26 +67,19 @@ de overige leerlingtellingen beschrijven de volledige huidige accountbasis. De o
 voorstel opgeslagen en getoond. Zonder meetbare aandachtspunten wordt evidence
 learners geweigerd. Een ontbrekende nieuwe RPC blokkeert bestaande school-AI niet.
 
-## Dagmail (standaard uit)
+## Dagmail: geschrapt op 17 november 2026
 
-Vercel-route `/api/cron/owner-learners`, 08:00 UTC dagelijks. Vereist CRON_SECRET,
-VERCEL_ENV=production, OWNER_LEARNER_DIGEST_ENABLED=true en RESEND_API_KEY.
-Ontvanger komt uitsluitend uit de actieve platform_owner/auth-identiteit; geen
-adres uit request of vrije configuratie. De mail bevat totalen, geen leerling-PII.
-Voorlopig geen mail naar leerlingen, marketinglijst of externe CRM.
+De dagelijkse samenvatting (`/api/cron/owner-learners`, `lib/owner-learner-digest.ts`)
+is nooit geactiveerd: de route stopte zolang `OWNER_LEARNER_DIGEST_ENABLED` op
+Vercel niet op `true` stond, en die schakelaar is nooit omgezet (`platform_learner_digests`
+bleef leeg). Besluit Önder, 17 nov 2026: schrappen. Sinds die dag mailt ribbaPro
+per zelfstandige leerlingregistratie (trigger `on_standalone_learner_signup` →
+`billing_email_outbox`, migratie `20261116233000`), en de totalen staan op dit
+dashboard. De cron, de route, de maillogica en de tests zijn verwijderd.
 
-Databaseclaim is atomair, één per vorige Amsterdamdag, lease 10 minuten. Payload
-blijft gelijk bij retry. Resend idempotency-key per dag, retry alleen binnen 23 uur
-na claim (provider bewaart sleutel 24 uur). Niet afgerond geeft 503, geen fictieve
-succesmelding. Dagelijks schema doet geen automatische retry binnen dezelfde dag;
-na fout kan dezelfde cron veilig opnieuw worden aangeroepen binnen die dag/23 uur.
-Gemiste eerdere dagen worden niet stil ingehaald. Ontvangerwissel/revocation blokkeert
-hergebruik van een bestaande claim. Na provideracceptatie heet de status “sent”,
-niet “afgeleverd/geopend”. Mailbounces worden niet gemeten.
-
-Bron providercontract: https://resend.com/docs/dashboard/emails/idempotency-keys
-Mailclaims/payload maximaal 90 dagen na volgende actieve cron. Geen leerlingnamen,
-adressen of account-IDs daarin. Uitsluitings-IDs verdwijnen bij accountverwijdering.
+De databasekant (`platform_learner_digests`, `claim_owner_learner_digest`,
+`finish_owner_learner_digest`) staat nog in ribbaPro en wordt apart opgeruimd
+met een migratie; zonder aanroeper doet hij niets.
 
 ## Uitrol en terugweg
 
