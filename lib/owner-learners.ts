@@ -26,3 +26,30 @@ export function zelfAangemeldUitleg(m:LearnerSummary['metrics']):string{
  return delen.filter(Boolean).join(' · ');
 }
 
+
+// ── Leerlingkaart (17 nov 2026) ────────────────────────────────────────────
+// Eén leerling, achter dezelfde poort als de lijst. Bron: owner_learner_detail
+// (ribbaPro 20261117150000). Geen nieuwe meting; alleen een nieuw venster.
+export interface LearnerDetail {
+ captured_at:string;definition_version:number;
+ account:LearnerList['rows'][number];
+ activity:{measured_since:string;last_event_at:string|null;active_days_7:number;active_days_30:number;events_30:number;
+  days:{day:string;events:number;screens:number}[];
+  per_day:{day:string;items:{soort:'scherm'|'klik';scherm:string|null;element:string|null;keer:number}[]}[];
+  top_screens:{scherm:string|null;keer:number}[]};
+ theory:{topics_visited:number;topics_completed:number;last_visit:string|null};
+}
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/** Valideer het id uit de URL en de inzagereden uit het formulier; alles anders wordt geweigerd. */
+export function parseLearnerDetailQuery(id:unknown,value:unknown):{userId:string;reason:string}|null{
+ if(typeof id!=='string'||!UUID.test(id))return null;
+ if(!value||typeof value!=='object')return null;
+ const v=value as Record<string,unknown>;
+ if(typeof v.reason!=='string'||v.reason.trim().length<10||v.reason.length>300)return null;
+ return {userId:id.toLowerCase(),reason:v.reason.trim()};
+}
+/** Korte, eerlijke samenvatting van de activiteit voor bovenaan de kaart. */
+export function activiteitSamenvatting(a:LearnerDetail['activity']):string{
+ if(!a.last_event_at)return 'Geen gemeten appgebruik sinds de meting begon ('+a.measured_since+').';
+ return `${a.active_days_7} van de laatste 7 dagen actief · ${a.active_days_30} van de laatste 30 · ${a.events_30} handelingen in 30 dagen`;
+}
