@@ -1,0 +1,17 @@
+.keuze{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:24px}
+.keuze button[aria-pressed="true"]{color:var(--support-text);border-color:var(--support-blue);background:var(--support-input)}
+.intern{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--support-muted);margin-left:8px}
+.panel{padding:24px;margin-bottom:24px}
+.panel h2{font-size:20px;margin:0 0 16px}
+.panel summary{cursor:pointer;min-height:32px}
+.panel p{line-height:1.65;color:var(--support-muted)}
+.panel code{font-size:12px}
+.grafiek{display:flex;align-items:end;gap:5px;height:110px;margin:20px 0 16px}
+.grafiek>div{flex:1;border-radius:5px 5px 0 0;background:linear-gradient(#92c5ff,#3167bd);min-width:0}
+.dagen{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;font-size:13px;margin:16px 0}
+.tabelWrap{overflow-x:auto}
+.tabel{width:100%;border-collapse:collapse;font-size:14px}
+.tabel th{text-align:left;font-weight:500;color:var(--support-muted);font-size:12px;padding:10px 12px;border-bottom:1px solid var(--support-line);white-space:nowrap}
+.tabel td{padding:10px 12px;border-bottom:1px solid var(--support-line);overflow-wrap:anywhere}
+.getal{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:650px){.panel{padding:18px}.grafiek{gap:3px}.intern{margin-left:0}}

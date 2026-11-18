@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
+import WebAnalytics from '@/components/WebAnalytics';
 import AttributionCapture from "@/components/AttributionCapture";
 import "../globals.css";
 
@@ -10,7 +11,7 @@ const inter = Inter({ subsets: ["latin"] });
 // Consent Mode v2 default-denied vóór gtag.js, url_passthrough en een
 // cross-domain linker over beide domeinen zodat de _gl-parameter van een
 // inkomende Ads-klik niet verloren gaat. Consent blijft 'denied' tot er een
-// consent-moment is (link.ribba.app heeft nu geen banner) — dankzij Consent
+// Google Ads-consent-moment is — dankzij Consent
 // Mode-modellering blijft de conversiemeting bruikbaar.
 const GADS_ID = process.env.NEXT_PUBLIC_GADS_ID || "AW-18341801400";
 
@@ -73,6 +74,7 @@ gtag('config','${GADS_ID}');`}
       </head>
       <body className={inter.className}>
         <AttributionCapture />
+        <WebAnalytics />
         {children}
       </body>
     </html>

@@ -32,7 +32,7 @@ export default function MarketingOverview({token,isCurrentToken}:{token:string;i
         <article className={styles.stat}><span>Nog geen centrale keuze</span><strong>{group.not_asked}</strong><small>Alleen in de app om toestemming vragen</small></article>
         <article className={styles.stat}><span>Geen toestemming / afgemeld</span><strong>{group.declined+group.withdrawn}</strong><small>{group.declined} geweigerd · {group.withdrawn} ingetrokken</small></article>
       </div>
-      <p>{group.accounts} accounts in deze doelgroep. {group.age_or_profile_blocked} kunnen zich nu niet aanmelden door een ontbrekende geboortedatum of leeftijd onder 16 jaar.</p>
+      <p>{group.accounts} accounts in deze doelgroep. {group.age_or_profile_blocked} kunnen zich nu niet aanmelden, bijvoorbeeld door een ontbrekende geboortedatum, een leeftijd onder 16 jaar of een account zonder bruikbaar e-mailadres.</p>
       <p>{group.legacy_unconfirmed} accounts hebben alleen een oud aanvraagvinkje. Dat telt hier niet als centrale toestemming. {group.granted-group.eligible} vastgelegde toestemmingen zijn momenteel niet bruikbaar.</p>
       <p className={styles.subtitle}>Bekende testaccounts en platformmedewerkers zijn uitgesloten. Onbekende tests kunnen nog in de cijfers staan. Toestemming is geen bewijs dat een adres echt, bereikbaar of actief is.</p>
       <small>Bijgewerkt: {new Date(visible!.data!.captured_at).toLocaleString('nl-NL')}. Verzending staat uit.</small>

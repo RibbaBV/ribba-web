@@ -1,6 +1,6 @@
 import {NextRequest} from 'next/server';
 import {withSupportAccess,SupportRequestError} from '@/lib/support-auth';
-import {parseLearnerQuery} from '@/lib/owner-learners';
+import {parseLearnerQuery,LIJST_INZAGE_REDEN} from '@/lib/owner-learners';
 export const dynamic='force-dynamic';
 /** Return learner totals only after owner, MFA and audit checks. */
 export async function GET(req:NextRequest){
@@ -10,13 +10,17 @@ export async function GET(req:NextRequest){
   return data;
  });
 }
-/** Return a bounded learner list after owner authorization and reason auditing; keep searches out of URLs. */
+/** Return a bounded learner list after owner authorization; the fixed reason goes to the audit log. Searches stay out of URLs. */
 export async function POST(req:NextRequest){
  // Query is in POST body so email searches do not enter URLs/access logs.
  const input=parseLearnerQuery(await req.json().catch(()=>null));
- return withSupportAccess(req,{action:'owner.learners.list',ownerOnly:true,level:2,reason:input?.reason,targetType:'learner_accounts',meta:input?{filter:input.filter,page:input.page}:undefined},async({supabase,user})=>{
-  if(!input)throw new SupportRequestError('Vul een geldige zoekopdracht en inzagereden in.',400);
-  const {data,error}=await supabase.rpc('owner_learner_list_marketing',{p_actor:user.id,p_filter:input.filter,p_query:input.query,p_page:input.page});
+ return withSupportAccess(req,{action:'owner.learners.list',ownerOnly:true,level:2,reason:LIJST_INZAGE_REDEN,targetType:'learner_accounts',meta:input?{filter:input.filter,page:input.page}:undefined},async({supabase,user})=>{
+  if(!input)throw new SupportRequestError('Vul een geldige zoekopdracht in.',400);
+  const args={p_actor:user.id,p_filter:input.filter,p_query:input.query,p_page:input.page};
+  // Met marketingstatus zodra de DB-migratie live is; tot dan (PGRST202:
+  // functie bestaat niet) dezelfde lijst zonder marketingkolom.
+  let {data,error}=await supabase.rpc('owner_learner_list_marketing',args);
+  if(error?.code==='PGRST202')({data,error}=await supabase.rpc('owner_learner_list',args));
   if(error||!data)throw new SupportRequestError('De leerlingenlijst kan niet worden geladen. Probeer later opnieuw.',503);
   return data;
  });

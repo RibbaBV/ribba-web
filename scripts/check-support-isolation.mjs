@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const read = (path) => readFileSync(resolve(root, path), 'utf8');
-const markers = ['googletagmanager.com/gtag', 'gtag-consent-default', 'ribba_signup_attribution'];
+const markers = ['googletagmanager.com/gtag', 'gtag-consent-default', 'ribba_signup_attribution', 'ribba_web_analytics'];
 
 function browserCode(html) {
   const scripts = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)]
@@ -20,7 +20,7 @@ assert.equal(existsSync(resolve(root, 'app/layout.tsx')), false,
 assert.ok(existsSync(resolve(root, 'app/(support)/layout.tsx')));
 assert.ok(existsSync(resolve(root, 'app/(site)/layout.tsx')));
 
-for (const route of ['support', 'support/dashboard', 'support/dashboard/journey', 'support/dashboard/learners']) {
+for (const route of ['support', 'support/gebruik', 'support/dashboard', 'support/dashboard/journey', 'support/dashboard/learners']) {
   const support = read(`.next/server/app/${route}.html`);
   const supportDelivered = support + browserCode(support);
   for (const marker of markers) {

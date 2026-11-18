@@ -1,7 +1,8 @@
 # Campagnevoorbereiding — leerlingtoestemming
 
-Lokale branch `feat/learner-marketing-consent`, basis `ea7f335`. Nog geen
-productie-uitrol; er worden geen marketingberichten verstuurd.
+PR #125 (branch `feat/learner-marketing-consent`), op 18 nov 2026 bijgewerkt op main.
+Zolang de DB-migratie van ribbaPro #964 niet live is, valt de leerlingenlijst
+terug op `owner_learner_list`. Nog geen productie-uitrol; er worden geen marketingberichten verstuurd.
 
 Het gezamenlijke contract, appflow, database-eigendom, onderzoek, oude clients,
 leeftijdsgrens, intrekking en acceptatie staan in ribbaPro:

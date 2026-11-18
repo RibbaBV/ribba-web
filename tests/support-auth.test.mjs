@@ -493,15 +493,22 @@ for(const [label,config,status] of [
   assert.ok(!currentClient.rpcCalls.some(c=>['owner_learner_summary','owner_learner_list_marketing'].includes(c.naam)));
  }
 });
-test('learner PII requires reason and audited level 2, only server identity is sent to DB',async()=>{
+test('learner PII is audited at level 2 with the fixed server-side reason; only server identity is sent to DB',async()=>{
  currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_learner_list_marketing:{data:{rows:[],total:0},error:null}}});
- let res=await learnersPOST(learnersRequest({...learnerInput,reason:''}));assert.equal(res.status,400);
+ // Sinds 18 nov 2026 typt de eigenaar geen reden meer; een ongeldige zoekopdracht blijft wel 400.
+ let res=await learnersPOST(learnersRequest({...learnerInput,filter:'toString'}));assert.equal(res.status,400);
  assert.ok(!currentClient.rpcCalls.some(c=>c.naam==='owner_learner_list_marketing'));
  res=await learnersPOST(learnersRequest({...learnerInput,p_actor:'forged'}));assert.equal(res.status,200);
  const call=currentClient.rpcCalls.find(c=>c.naam==='owner_learner_list_marketing');assert.equal(call.args.p_actor,USER.id);
- const log=currentClient.logs.find(l=>l.result==='ok');assert.equal(log.level,2);assert.equal(log.reason,learnerInput.reason);
+ const log=currentClient.logs.find(l=>l.result==='ok');assert.equal(log.level,2);assert.equal(log.reason,'Eigenaar bekijkt het leerlingenoverzicht');
  assert.ok(!JSON.stringify(currentClient.logs).includes('private@example.test'));
  assert.match(res.headers.get('cache-control'),/no-store/);
+});
+test('learner list falls back to owner_learner_list while the marketing RPC is not deployed',async()=>{
+  currentClient=makeClient({rpc:{is_platform_owner:{data:true,error:null},owner_learner_list_marketing:{data:null,error:{code:'PGRST202',message:'not found'}},owner_learner_list:{data:{rows:[],total:0},error:null}}});
+  const res=await learnersPOST(learnersRequest(learnerInput));assert.equal(res.status,200);
+  assert.ok(currentClient.rpcCalls.some(c=>c.naam==='owner_learner_list_marketing'));
+  const call=currentClient.rpcCalls.find(c=>c.naam==='owner_learner_list');assert.equal(call.args.p_actor,USER.id);
 });
 test('learner endpoint refuses missing MFA and anonymous requests',async()=>{
  for(const [auth,status] of [[null,401],[`Bearer ${token('aal1')}`,403],[`Bearer ${token('aal2',{amr:[{method:'totp',timestamp:0}]})}`,403]]){

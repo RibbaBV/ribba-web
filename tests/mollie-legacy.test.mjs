@@ -69,7 +69,10 @@ test('de dode reconcile-cron is uit vercel.json, de levende crons staan er nog',
     paden.includes('/api/cron/ribba-ambassadeur-payouts'),
     'ribba-ambassadeur-payouts moet blijven draaien',
   );
-  assert.ok(paden.includes('/api/cron/owner-learners'));
+  assert.ok(paden.includes('/api/cron/signup-reminders'), 'opvolging hangende Checkout (spoor 1b) moet draaien');
+  // owner-learners (dagelijkse leerlingdigest) is op 17 nov 2026 geschrapt: nooit
+  // geactiveerd, en sinds die dag mailt ribbaPro per zelfstandige leerling.
+  assert.equal(paden.includes('/api/cron/owner-learners'), false);
   assert.equal(paden.length, 4);
 });
 
