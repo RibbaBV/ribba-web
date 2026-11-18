@@ -1019,3 +1019,30 @@ a.text-link:hover {
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
   }
 }
+
+.analytics-consent {
+  position: fixed;
+  z-index: 100;
+  inset: auto 1rem max(1rem, env(safe-area-inset-bottom));
+  margin-inline: auto;
+  width: fit-content;
+  max-width: min(44rem, calc(100% - 2rem));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem 1rem;
+  padding: 1rem;
+  border-radius: .75rem;
+  background: #1c1917;
+  color: white;
+  font-size: .875rem;
+}
+.analytics-consent p { flex: 1 1 16rem; }
+.analytics-consent a { text-decoration: underline; }
+.analytics-consent div { display: flex; gap: .5rem; }
+.analytics-consent button {
+  padding: .5rem .75rem;
+  border: 1px solid currentColor;
+  border-radius: .5rem;
+  cursor: pointer;
+}

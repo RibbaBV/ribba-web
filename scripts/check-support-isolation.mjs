@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const read = (path) => readFileSync(resolve(root, path), 'utf8');
-const markers = ['googletagmanager.com/gtag', 'gtag-consent-default', 'ribba_signup_attribution'];
+const markers = ['googletagmanager.com/gtag', 'gtag-consent-default', 'ribba_signup_attribution', 'ribba_web_analytics'];
 
 function browserCode(html) {
   const scripts = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)]
