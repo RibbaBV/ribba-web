@@ -43,6 +43,29 @@ export interface LearnerDetail {
   per_day:{day:string;items:{soort:'scherm'|'klik';scherm:string|null;element:string|null;keer:number}[]}[];
   top_screens:{scherm:string|null;keer:number}[]};
  theory:{topics_visited:number;topics_completed:number;last_visit:string|null};
+ /** Deelketen, sinds definition_version 2 (ribbaPro 20261118120000). Oudere payloads hebben dit niet. */
+ sharing?:LearnerSharing;
+ /** Via wie kwam deze leerling binnen? null als niemand; ontbreekt in oudere payloads. */
+ referred_by?:{user_id:string;email:string|null;name:string|null;code:string;at:string}|null;
+}
+export interface LearnerSharing{
+ code:string|null;share_taps_30:number;link_opens:number;link_opens_30:number;
+ link_opens_by_platform:Partial<Record<'ios'|'android'|'other',number>>;
+ referred_accounts:number;
+ referred:{user_id:string;email:string|null;registered_at:string;first_event_at:string|null;last_event_at:string|null}[];
+}
+const PLATFORM_LABEL:Record<'ios'|'android'|'other',string>={ios:'iPhone',android:'Android',other:'anders'};
+/** "9 keer geopend, waarvan 6 op iPhone en 3 op Android" — of eerlijk: nog niet. */
+export function linkOpeningenTekst(s:LearnerSharing):string{
+ if(!s.code)return 'Nog geen deelcode (ontstaat bij de eerste tik op Delen).';
+ if(s.link_opens===0)return 'Link nog niet geopend.';
+ const delen=(['ios','android','other'] as const).filter(p=>(s.link_opens_by_platform[p]??0)>0).map(p=>`${s.link_opens_by_platform[p]} op ${PLATFORM_LABEL[p]}`);
+ return `${s.link_opens} keer geopend (${s.link_opens_30} in 30 dagen)${delen.length?`, waarvan ${delen.join(' en ')}`:''}.`;
+}
+/** Een vriend die een account maakte maar nog nooit in de app was, is nog geen leerling. */
+export function vriendStatus(v:LearnerSharing['referred'][number]):string{
+ if(!v.first_event_at)return 'account aangemaakt, nog niet in de app geweest';
+ return v.last_event_at&&v.last_event_at!==v.first_event_at?'actief':'één keer in de app geweest';
 }
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /** Valideer het id uit de URL; alles anders wordt geweigerd. */
