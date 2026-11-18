@@ -2,7 +2,7 @@
 import {use,useEffect,useState} from 'react';
 import Link from 'next/link';
 import {useSupportToken} from '../../../client';
-import {activiteitSamenvatting,learnerFilterLabels,type LearnerDetail,type LearnerFilter} from '@/lib/owner-learners';
+import {activiteitSamenvatting,learnerFilterLabels,linkOpeningenTekst,vriendStatus,type LearnerDetail,type LearnerFilter} from '@/lib/owner-learners';
 import styles from '../../../support-design.module.css';
 import local from '../learners.module.css';
 const dt=(value:string|null|undefined)=>value?new Date(value).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short'}):'—';
@@ -43,6 +43,7 @@ function AuthenticatedDetail({id,token,isCurrentToken}:{id:string;token:string;i
    <section className={`${styles.schoolPanel} ${local.panel}`} aria-labelledby="wie"><h2 id="wie">{d.account.name??'Naam niet eenduidig beschikbaar'}</h2>
     <p>{d.account.email??'Geen e-mailadres beschikbaar'} · <span className={styles.badgeAttention}>{learnerFilterLabels[d.account.school_state as LearnerFilter]}</span></p>
     <dl><div><dt>Account aangemaakt</dt><dd>{dt(d.account.registered_at)}</dd></div><div><dt>Laatste login</dt><dd>{dt(d.account.last_sign_in_at)}</dd></div><div><dt>Laatste handeling</dt><dd>{dt(d.activity.last_event_at)}</dd></div><div><dt>Registratie</dt><dd>{d.account.registration_hint?'Zelfstandig, zonder rijschool':'Via een rijschool'}</dd></div></dl>
+    {d.referred_by&&<p>Aangemeld via: <Link href={`/support/dashboard/learners/${d.referred_by.user_id}`}>{d.referred_by.name??d.referred_by.email??'onbekend'}</Link>{d.referred_by.name&&d.referred_by.email?` (${d.referred_by.email})`:''} · code {d.referred_by.code} · {dt(d.referred_by.at)}</p>}
     {d.account.schools.length>0&&<div>{d.account.schools.map((s,i)=><p key={`${s.id}-${i}`}><Link href={`/support/${s.id}`}>{s.name}</Link> · {learnerFilterLabels[s.status as LearnerFilter]??s.status}</p>)}</div>}
    </section>
    <section className={`${styles.schoolPanel} ${local.panel}`} aria-labelledby="terug"><h2 id="terug">Komt hij terug?</h2><p className={styles.subtitle}>{activiteitSamenvatting(d.activity)}</p>
@@ -58,6 +59,14 @@ function AuthenticatedDetail({id,token,isCurrentToken}:{id:string;token:string;i
    <section className={`${styles.schoolPanel} ${local.panel}`} aria-labelledby="theorie"><h2 id="theorie">Theorie</h2>
     <dl><div><dt>Onderwerpen bezocht</dt><dd>{d.theory.topics_visited}</dd></div><div><dt>Afgerond</dt><dd>{d.theory.topics_completed}</dd></div><div><dt>Laatste bezoek</dt><dd>{dt(d.theory.last_visit)}</dd></div></dl>
    </section>
+   {d.sharing&&<section className={`${styles.schoolPanel} ${local.panel}`} aria-labelledby="delen"><h2 id="delen">Delen</h2>
+    {!d.sharing.code?<p className={styles.empty}>{linkOpeningenTekst(d.sharing)}</p>:<>
+     <dl><div><dt>Deelcode</dt><dd style={{fontVariantNumeric:'tabular-nums',letterSpacing:2}}>{d.sharing.code}</dd></div><div><dt>Deelknop getikt (30 d)</dt><dd>{d.sharing.share_taps_30}</dd></div><div><dt>Accounts via deze persoon</dt><dd>{d.sharing.referred_accounts}</dd></div></dl>
+     <p className={styles.subtitle}>{linkOpeningenTekst(d.sharing)}</p>
+     {d.sharing.referred.length>0&&<div className={local.rows}>{d.sharing.referred.map(v=><article className={local.row} key={v.user_id}><div><h3><Link href={`/support/dashboard/learners/${v.user_id}`}>{v.email??'Geen e-mailadres beschikbaar'}</Link></h3><p>{vriendStatus(v)}</p></div><dl><div><dt>Account aangemaakt</dt><dd>{dt(v.registered_at)}</dd></div><div><dt>Eerste handeling</dt><dd>{dt(v.first_event_at)}</dd></div><div><dt>Laatste handeling</dt><dd>{dt(v.last_event_at)}</dd></div></dl></article>)}</div>}
+     <p className={styles.subtitle}>Aan hoeveel personen de link is gestuurd, weet de telefoon niet. Geopende links en accounts met deze code zijn het dichtste erbij; wie de code niet invult, telt niet mee.</p>
+    </>}
+   </section>}
    <details className={`${styles.schoolPanel} ${local.panel}`}><summary>Wat meten we precies?</summary><p>Schermen en tikken komen uit de app (bewaard 90 dagen, sinds {d.activity.measured_since}). Geen ingetypte tekst, locatie of IP. Eigen proeven vanuit de ontwikkelversie tellen niet mee. Dagen zijn in Nederlandse tijd.</p><p>Laatste login verandert alleen bij een nieuwe sessie; laatste handeling is de betere maat voor gebruik. Theorievoortgang telt bezochte paragrafen, niet of iemand ze begreep.</p><p>Bijgewerkt: {dt(d.captured_at)}.</p></details>
   </>}
  </>;
