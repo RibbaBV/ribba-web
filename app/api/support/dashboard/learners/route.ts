@@ -16,7 +16,11 @@ export async function POST(req:NextRequest){
  const input=parseLearnerQuery(await req.json().catch(()=>null));
  return withSupportAccess(req,{action:'owner.learners.list',ownerOnly:true,level:2,reason:LIJST_INZAGE_REDEN,targetType:'learner_accounts',meta:input?{filter:input.filter,page:input.page}:undefined},async({supabase,user})=>{
   if(!input)throw new SupportRequestError('Vul een geldige zoekopdracht in.',400);
-  const {data,error}=await supabase.rpc('owner_learner_list',{p_actor:user.id,p_filter:input.filter,p_query:input.query,p_page:input.page});
+  const args={p_actor:user.id,p_filter:input.filter,p_query:input.query,p_page:input.page};
+  // Met marketingstatus zodra de DB-migratie live is; tot dan (PGRST202:
+  // functie bestaat niet) dezelfde lijst zonder marketingkolom.
+  let {data,error}=await supabase.rpc('owner_learner_list_marketing',args);
+  if(error?.code==='PGRST202')({data,error}=await supabase.rpc('owner_learner_list',args));
   if(error||!data)throw new SupportRequestError('De leerlingenlijst kan niet worden geladen. Probeer later opnieuw.',503);
   return data;
  });
