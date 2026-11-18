@@ -57,7 +57,7 @@ export default function WebAnalytics() {
   if (!path || consent !== 'undecided') return null;
   return (
     <aside className="analytics-consent" aria-label="Toestemming voor bezoekersstatistieken">
-      <p>Mogen we met PostHog meten welke pagina’s worden bezocht? <Link href="/privacy">Privacybeleid</Link></p>
+      <p>Mogen we meten welke pagina’s worden bezocht? <Link href="/privacy">Privacybeleid</Link></p>
       <div>
         <button type="button" onClick={() => choose('rejected')}>Weigeren</button>
         <button type="button" onClick={() => choose('accepted')}>Accepteren</button>
