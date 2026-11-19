@@ -2,7 +2,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {parseWeeksParam,parseSignupWeeks,percentage,checkoutRate,activationRate,payingRate,weekLabel,dayLabel,daysSince,signupsByMonth} from '../lib/owner-signups.ts';
+import {parseWeeksParam,parseSignupWeeks,originText,percentage,checkoutRate,activationRate,payingRate,weekLabel,dayLabel,daysSince,signupsByMonth} from '../lib/owner-signups.ts';
 
 const nul={started:0,checkout:0,abandoned:0,open:0,activated:0,trialing:0,paying:0,stopped:0};
 const PAYLOAD={status:'ready',captured_at:'2026-11-19T10:00:00Z',definition_version:2,weeks_requested:12,from:'2026-09-01',
@@ -31,6 +31,30 @@ test('payload: afwijkende vorm wordt geweigerd, niet half getoond',()=>{
   {...PAYLOAD,signups:undefined},{...PAYLOAD,last_signup_at:'gisteren'},{...PAYLOAD,captured_at:'invalid'},{...PAYLOAD,last_signup_at:undefined},
   {...PAYLOAD,signups:[{...PAYLOAD.signups[0],stage:'unknown'}]},{...PAYLOAD,signups:[{...PAYLOAD.signups[0],name:null}]}])
   assert.equal(parseSignupWeeks(bad),null,JSON.stringify(bad));
+});
+
+test('herkomst (v3): komt door; een v2-payload zonder herkomst blijft geldig met origins null',()=>{
+ const v2=parseSignupWeeks(PAYLOAD);assert.equal(v2.origins,null);assert.equal(v2.signups[0].origin,undefined);
+ const v3=parseSignupWeeks({...PAYLOAD,definition_version:3,
+  signups:[{...PAYLOAD.signups[0],origin:'campaign',origin_label:'instantly / email / warm'},{...PAYLOAD.signups[1],origin:'unknown',origin_label:null}],
+  origins:[{origin:'campaign',label:'instantly / email / warm',started:1,checkout:1,customers:1},{origin:'unknown',label:null,started:1,checkout:0,customers:0}]});
+ assert.ok(v3);assert.equal(v3.origins.length,2);assert.equal(v3.signups[0].origin,'campaign');assert.equal(v3.signups[1].origin_label,null);
+});
+
+test('herkomst (v3): onbekende groep, kapotte telling of te lang label wordt geweigerd',()=>{
+ const rij={origin:'website',label:'ribba.nl',started:1,checkout:0,customers:0};
+ for(const bad of [{...PAYLOAD,origins:'x'},{...PAYLOAD,origins:[{...rij,origin:'tiktok'}]},{...PAYLOAD,origins:[{...rij,started:-1}]},
+  {...PAYLOAD,origins:[{...rij,label:'x'.repeat(201)}]},{...PAYLOAD,origins:[{...rij,customers:undefined}]},
+  {...PAYLOAD,signups:[{...PAYLOAD.signups[0],origin:'tiktok'}]},{...PAYLOAD,signups:[{...PAYLOAD.signups[0],origin:'ad',origin_label:5}]}])
+  assert.equal(parseSignupWeeks(bad),null,JSON.stringify(bad));
+});
+
+test('herkomst: korte omschrijving per groep',()=>{
+ assert.equal(originText('campaign','instantly / email / warm'),'Campagne · instantly / email / warm');
+ assert.equal(originText('ad','Google Ads'),'Advertentie · Google Ads');
+ assert.equal(originText('website','ribba.nl'),'Via ribba.nl');
+ assert.equal(originText('other_site','google.com'),'Andere website · google.com');
+ assert.equal(originText('tip',null),'Ambassadeur-tip');assert.equal(originText('unknown',null),'Onbekend');
 });
 
 test('percentages zijn veilig bij 0 en afgerond',()=>{
