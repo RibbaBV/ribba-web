@@ -27,7 +27,7 @@
 
 import { DOMAIN } from '@/lib/domains';
 import type { SchoolInfo } from '@/lib/admin-notifications';
-import type { SignupAttribution } from '@/lib/signup-attribution';
+import { adPlatform, type SignupAttribution } from '@/lib/signup-attribution';
 
 export const HERINNERING_NA_UREN = 24;
 export const TEAM_NA_UREN = 48;
@@ -167,7 +167,7 @@ export function teamOpvolgingInfo(rij: PendingRij, nu: Date): SchoolInfo {
       Kortingscode: rij.promo_code ?? undefined,
       Herkomst: a?.landing_page,
       Verwijzer: a?.referrer,
-      Campagne: campagne || undefined,
+      Campagne: campagne || (a ? adPlatform(a) : null) || undefined,
       Herinnering: rij.reminder_sent_at
         ? `aan de rijschool verstuurd op ${nlTijd(rij.reminder_sent_at)}`
         : 'nog niet aan de rijschool verstuurd',

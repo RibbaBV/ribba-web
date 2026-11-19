@@ -13,6 +13,10 @@
 export const ATTRIBUTION_STORAGE_KEY = 'ribba_signup_attribution';
 
 const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'] as const;
+// Klik-ID's van advertentieplatforms (20 nov 2026). ribba.nl stuurt ze al mee
+// over de domeingrens; tot nu toe vielen ze hier weg, waardoor een
+// advertentieklik zonder utm-label als "onbekend" eindigde.
+const CLICK_KEYS = ['gclid', 'gbraid', 'wbraid', 'msclkid', 'fbclid'] as const;
 
 export interface SignupAttribution {
   utm_source?: string;
@@ -20,6 +24,11 @@ export interface SignupAttribution {
   utm_campaign?: string;
   utm_term?: string;
   utm_content?: string;
+  gclid?: string;
+  gbraid?: string;
+  wbraid?: string;
+  msclkid?: string;
+  fbclid?: string;
   referrer?: string;
   landing_page?: string;
   captured_at?: string;
@@ -30,7 +39,7 @@ export function captureSignupAttribution(): void {
   try {
     const params = new URLSearchParams(window.location.search);
     const current: SignupAttribution = { captured_at: new Date().toISOString() };
-    for (const key of UTM_KEYS) {
+    for (const key of [...UTM_KEYS, ...CLICK_KEYS]) {
       const value = params.get(key);
       if (value) current[key] = value.slice(0, 200);
     }
@@ -44,9 +53,9 @@ export function captureSignupAttribution(): void {
     const storedRaw = window.localStorage.getItem(ATTRIBUTION_STORAGE_KEY);
     if (storedRaw) {
       // First-touch wint; alleen upgraden als de eerdere capture geen
-      // utm_source had en dit bezoek wel.
+      // campagnesignaal had (utm_source of klik-ID) en dit bezoek wel.
       const stored = JSON.parse(storedRaw) as SignupAttribution;
-      if (stored.utm_source || !current.utm_source) return;
+      if (hasCampaignSignal(stored) || !hasCampaignSignal(current)) return;
     }
     window.localStorage.setItem(ATTRIBUTION_STORAGE_KEY, JSON.stringify(current));
   } catch {
@@ -71,7 +80,7 @@ export function sanitizeSignupAttribution(input: unknown): SignupAttribution | n
   const raw = input as Record<string, unknown>;
   const out: SignupAttribution = {};
   const allowed: Array<keyof SignupAttribution> = [
-    ...UTM_KEYS, 'referrer', 'landing_page', 'captured_at',
+    ...UTM_KEYS, ...CLICK_KEYS, 'referrer', 'landing_page', 'captured_at',
   ];
   for (const key of allowed) {
     const value = raw[key];
@@ -82,12 +91,28 @@ export function sanitizeSignupAttribution(input: unknown): SignupAttribution | n
   return Object.keys(out).length > 0 ? out : null;
 }
 
+/** Een utm_source of een klik-ID: dit bezoek kwam aantoonbaar uit een campagne. */
+export function hasCampaignSignal(attr: SignupAttribution): boolean {
+  return !!attr.utm_source || CLICK_KEYS.some(key => !!attr[key]);
+}
+
+/** Welk advertentieplatform hoort bij de klik-ID, of null zonder klik-ID. */
+export function adPlatform(attr: SignupAttribution): string | null {
+  if (attr.gclid || attr.gbraid || attr.wbraid) return 'Google Ads';
+  if (attr.msclkid) return 'Microsoft Ads';
+  if (attr.fbclid) return 'Meta';
+  return null;
+}
+
 // Compacte mensleesbare samenvatting voor de admin-mail, bv.
-// "google / cpc / lp-vergelijk-rijscholen".
+// "google / cpc / lp-vergelijk-rijscholen". Zelfde volgorde als het
+// inschrijvingendashboard (owner_signup_weeks v3): utm > klik-ID > referrer.
 export function summarizeAttribution(attr: SignupAttribution): string {
   if (attr.utm_source) {
     return [attr.utm_source, attr.utm_medium, attr.utm_campaign].filter(Boolean).join(' / ');
   }
+  const platform = adPlatform(attr);
+  if (platform) return platform;
   if (attr.referrer) return attr.referrer;
   return 'direct / onbekend';
 }
