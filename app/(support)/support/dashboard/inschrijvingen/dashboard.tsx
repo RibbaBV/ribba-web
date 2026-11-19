@@ -1,6 +1,6 @@
 'use client';
-import {dayLabel,daysSince,percentage,signupsByMonth,stageLabels,type MonthGroup,type SignupStage,type SignupWeeks} from '@/lib/owner-signups';
-import {Banner,Empty,Footer,Funnel,Grid,Kpi,Kpis,Note,Panel,Pill,Row,Rows,type Tone} from '../../ui/kit';
+import {dayLabel,daysSince,originLabels,originText,percentage,signupsByMonth,stageLabels,type MonthGroup,type SignupStage,type SignupWeeks} from '@/lib/owner-signups';
+import {Banner,Empty,Explainer,Footer,Funnel,Grid,Kpi,Kpis,Note,Panel,Pill,Row,Rows,type Tone} from '../../ui/kit';
 import local from './inschrijvingen.module.css';
 const date=(value:string)=>new Date(value).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/Amsterdam'});
 /** Na zoveel dagen zonder inschrijving kleurt de melding bovenaan geel. */
@@ -24,13 +24,33 @@ export function Dashboard({data}:{data:SignupWeeks}){
    </Panel>
    <Panel id="maanden" title="Per maand"><Months data={data}/></Panel>
   </Grid>
+  <Origins data={data}/>
   <Panel id="wie" title="Wie schreef zich in">
    {data.signups.length===0?<Empty>Geen inschrijvingen in deze periode.</Empty>:
-   <Rows>{data.signups.map(s=><Row key={`${s.created_at}:${s.name}`} title={s.name} sub={s.city??undefined}
+   <Rows>{data.signups.map(s=><Row key={`${s.created_at}:${s.name}`} title={s.name} sub={[s.city,s.origin&&originText(s.origin,s.origin_label)].filter(Boolean).join(' · ')||undefined}
     meta={<time dateTime={s.created_at}>{dayLabel(s.created_at)}</time>} end={<Pill tone={stageTone(s.stage)}>{stageLabels[s.stage]}</Pill>}/>)}</Rows>}
   </Panel>
   <Footer>{data.excluded_tests>0&&<>{data.excluded_tests} {data.excluded_tests===1?'testinschrijving':'testinschrijvingen'} niet meegeteld. </>}Proef en betalend zijn de stand van vandaag. Bijgewerkt: {date(data.captured_at)}.</Footer>
  </>;
+}
+/** Waar komen ze vandaan: één regel per herkomst, met hoeveel er klant werden. */
+function Origins({data}:{data:SignupWeeks}){
+ if(!data.origins)return <Panel id="herkomst" title="Waar komen ze vandaan"><Empty>Herkomst is nog niet beschikbaar.</Empty></Panel>;
+ const metLabel=data.origins.filter(o=>o.origin==='campaign'||o.origin==='ad').reduce((n,o)=>n+o.started,0);
+ const totaal=data.origins.reduce((n,o)=>n+o.started,0);
+ return <Panel id="herkomst" title="Waar komen ze vandaan" note={totaal===0?undefined:`${metLabel} van de ${totaal} met een campagne- of advertentielabel`}>
+  {data.origins.length===0?<Empty>Geen inschrijvingen in deze periode.</Empty>:<>
+   <Rows>{data.origins.map(o=><Row key={`${o.origin}:${o.label??''}`} title={originText(o.origin,o.label)}
+    meta={`${o.started} ${o.started===1?'inschrijving':'inschrijvingen'}`}
+    end={<Pill tone={o.customers>0?'ok':'neutral'}>{o.customers} klant</Pill>}/>)}</Rows>
+   {totaal>0&&metLabel===0&&<Note>Geen enkele inschrijving had een campagnelabel. Links in mails en advertenties hebben een utm-label nodig om hier als campagne te verschijnen.</Note>}
+  </>}
+  <Explainer title="Hoe bepalen we de herkomst?">
+   <p>Elke inschrijving telt één keer, in de eerste groep die past: {(['tip','campaign','ad','website','other_site','unknown'] as const).map(o=>originLabels[o]).join(', ')}.</p>
+   <p>Campagne betekent een utm-label in de link; advertentie een klik-ID van Google, Microsoft of Meta. Via ribba.nl betekent dat iemand vanaf onze website doorklikte, zonder label. Onbekend is niet hetzelfde als direct: browsers geven lang niet altijd door waar iemand vandaan kwam.</p>
+   <p>Klant betekent nu in proef of betalend. Van andere websites tonen we alleen de domeinnaam.</p>
+  </Explainer>
+ </Panel>;
 }
 function LastSignup({data}:{data:SignupWeeks}){
  if(!data.last_signup_at)return <Banner tone="warn">Er heeft zich nog geen rijschool via de website ingeschreven.</Banner>;
