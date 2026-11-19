@@ -28,7 +28,7 @@ test('payload: afwijkende vorm wordt geweigerd, niet half getoond',()=>{
  for(const bad of [null,{},{...PAYLOAD,status:'collecting'},{...PAYLOAD,totals:{...PAYLOAD.totals,paying:-1}},
   {...PAYLOAD,weeks:[{...PAYLOAD.weeks[0],week_start:'17-11-2026'}]},{...PAYLOAD,weeks:[{week_start:'2026-11-17'}]},
   {...PAYLOAD,totals:{...PAYLOAD.totals,started:1.5}},{...PAYLOAD,weeks:'x'},
-  {...PAYLOAD,signups:undefined},{...PAYLOAD,last_signup_at:'gisteren'},{...PAYLOAD,last_signup_at:undefined},
+  {...PAYLOAD,signups:undefined},{...PAYLOAD,last_signup_at:'gisteren'},{...PAYLOAD,captured_at:'invalid'},{...PAYLOAD,last_signup_at:undefined},
   {...PAYLOAD,signups:[{...PAYLOAD.signups[0],stage:'unknown'}]},{...PAYLOAD,signups:[{...PAYLOAD.signups[0],name:null}]}])
   assert.equal(parseSignupWeeks(bad),null,JSON.stringify(bad));
 });

@@ -56,7 +56,7 @@ function counts(v: unknown): SignupCounts|null {
 export function parseSignupWeeks(value: unknown): SignupWeeks|null {
  if (!value || typeof value !== 'object') return null;
  const v = value as Record<string, unknown>;
- if (v.status !== 'ready' || typeof v.captured_at !== 'string' || !isCount(v.definition_version)
+ if (v.status !== 'ready' || !isTime(v.captured_at) || !isCount(v.definition_version)
   || !isCount(v.weeks_requested) || !isDate(v.from) || !isCount(v.abandon_after_days)
   || !isCount(v.excluded_tests) || !Array.isArray(v.weeks) || !Array.isArray(v.signups)
   || !(v.last_signup_at === null || isTime(v.last_signup_at))) return null;
@@ -72,7 +72,7 @@ export function parseSignupWeeks(value: unknown): SignupWeeks|null {
  const signups: Signup[] = [];
  for (const x of v.signups) { const r = signup(x); if (!r) return null; signups.push(r); }
  return {
-  status:'ready',captured_at:v.captured_at,definition_version:v.definition_version as number,
+  status:'ready',captured_at:v.captured_at as string,definition_version:v.definition_version as number,
   weeks_requested:v.weeks_requested as number,from:v.from as string,
   abandon_after_days:v.abandon_after_days as number,excluded_tests:v.excluded_tests as number,
   last_signup_at:(v.last_signup_at as string|null),weeks,totals,signups,

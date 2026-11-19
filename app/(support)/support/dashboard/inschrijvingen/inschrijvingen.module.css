@@ -17,11 +17,12 @@
 .track{height:10px;border-radius:6px;background:var(--support-input);overflow:hidden}
 .bar{height:100%;border-radius:6px;background:var(--support-blue)}
 .barGreen{background:#3fbf8f}
-.months{display:flex;align-items:flex-end;gap:12px;height:170px;padding-top:4px}
-.month{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px}
+.months{display:flex;align-items:flex-end;gap:12px;padding-top:4px}
+.month{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px}
+.plot{height:130px;width:100%;display:flex;align-items:flex-end;justify-content:center}
 .monthTotal{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;min-height:16px}
-.stack{width:100%;max-width:48px;display:flex;flex-direction:column-reverse;gap:2px;border-radius:6px 6px 0 0;overflow:hidden}
-.stack>div{min-height:6px}
+.stack{width:100%;max-width:48px;flex-shrink:0;display:flex;flex-direction:column-reverse;border-radius:6px 6px 0 0;overflow:hidden}
+.stack>div{flex-basis:0;min-height:0}
 .monthLabel{font-size:12px;color:var(--support-muted);border-top:1px solid var(--support-line);width:100%;text-align:center;padding-top:6px}
 .seg_paying{background:#3fbf8f}
 .seg_trialing{background:var(--support-blue)}

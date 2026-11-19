@@ -2,7 +2,7 @@
 import {dayLabel,daysSince,percentage,signupsByMonth,stageLabels,type MonthGroup,type SignupStage,type SignupWeeks} from '@/lib/owner-signups';
 import styles from '../../support-design.module.css';
 import local from './inschrijvingen.module.css';
-const date=(value:string)=>new Date(value).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short'});
+const date=(value:string)=>new Date(value).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/Amsterdam'});
 /** Na zoveel dagen zonder inschrijving kleurt de melding bovenaan geel. */
 const STIL_NA_DAGEN=14;
 /** Het inschrijvingendashboard zelf: puur weergave van één geldige payload. */
@@ -55,12 +55,12 @@ function Months({data}:{data:SignupWeeks}){
  const hoogste=Math.max(1,...maanden.map(m=>m.total));
  const zichtbaar=GROEPEN.filter(([g])=>maanden.some(m=>m.counts[g]>0));
  return <>
-  <div className={local.months} role="img" aria-label={maanden.map(m=>`${m.label}: ${m.total}`).join(', ')}>
+  <div className={local.months} role="img" aria-label={maanden.map(m=>`${m.label}: ${m.total}${m.total?` (${GROEPEN.filter(([g])=>m.counts[g]>0).map(([g,l])=>`${m.counts[g]} ${l}`).join(', ')})`:''}`).join('; ')}>
    {maanden.map(m=><div key={m.key} className={local.month}>
     <span className={local.monthTotal}>{m.total||''}</span>
-    <div className={local.stack} style={{height:`${m.total/hoogste*100}%`}}>
+    <div className={local.plot}><div className={local.stack} style={{height:`${m.total/hoogste*100}%`}}>
      {GROEPEN.map(([g])=>m.counts[g]>0&&<div key={g} className={local[`seg_${g}`]} style={{flexGrow:m.counts[g]}}/>)}
-    </div>
+    </div></div>
     <span className={local.monthLabel}>{m.label}</span>
    </div>)}
   </div>
