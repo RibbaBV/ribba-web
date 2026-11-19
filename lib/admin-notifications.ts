@@ -5,7 +5,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { logBillingEvent } from './billing-events';
 import { DOMAIN } from './domains';
-import type { SignupAttribution } from './signup-attribution';
+import { adPlatform, type SignupAttribution } from './signup-attribution';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || 'team@ribba.nl';
@@ -385,7 +385,7 @@ function herkomstRijen(attribution: SignupAttribution | null | undefined): Recor
   return {
     Herkomst: attribution.landing_page,
     Verwijzer: attribution.referrer,
-    Campagne: campagne || undefined,
+    Campagne: campagne || adPlatform(attribution) || undefined,
   };
 }
 
