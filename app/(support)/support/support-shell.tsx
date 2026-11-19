@@ -64,6 +64,7 @@ export function SupportFrame({ owner, path, dirty, children }: { owner: boolean;
         <Link className={styles.brand} href="/support/dashboard" aria-label="Ribba dashboard"><RibbaLogo height={25} /></Link>
         <nav className={styles.nav} aria-label="Beheer">
           <Link href="/support/dashboard" aria-current={path === '/support/dashboard' ? 'page' : undefined}>Overzicht</Link>
+          <Link href="/support/dashboard/inschrijvingen" aria-current={path.startsWith('/support/dashboard/inschrijvingen') ? 'page' : undefined}>Inschrijvingen</Link>
           <Link href="/support/dashboard/journey" aria-current={path.startsWith('/support/dashboard/journey') ? 'page' : undefined}>Klantreis en support</Link>
           <Link href="/support/dashboard/learners" aria-current={path.startsWith('/support/dashboard/learners') ? 'page' : undefined}>Leerlingen</Link>
           <Link href="/support/dashboard/tegoed" aria-current={path.startsWith('/support/dashboard/tegoed') ? 'page' : undefined}>Tegoed</Link>
