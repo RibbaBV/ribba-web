@@ -2,7 +2,7 @@ import {NextRequest} from 'next/server';
 import {withSupportAccess,SupportRequestError} from '@/lib/support-auth';
 import {parseSignupWeeks,parseWeeksParam} from '@/lib/owner-signups';
 export const dynamic='force-dynamic';
-/** Weekoverzicht van inschrijvingen: alleen tellingen, na eigenaar-, MFA- en auditcontrole. */
+/** Inschrijvingendashboard: tellingen en schoolnamen (geen contactgegevens), na eigenaar-, MFA- en auditcontrole. */
 export async function GET(req:NextRequest){
  const weeks=parseWeeksParam(new URL(req.url).searchParams.get('weeks'));
  return withSupportAccess(req,{action:'owner.signups.read',ownerOnly:true,level:0},async({supabase,user})=>{
