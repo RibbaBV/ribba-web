@@ -113,3 +113,30 @@
 @media(prefers-reduced-motion:reduce){.tile,.button{transition:none}}
 .bigFact{font-size:30px;font-weight:600;line-height:1.15;margin:2px 0 4px!important}
 .factNote{color:var(--support-muted);font-size:12px}
+
+/* Knoppen die een link zijn. */
+.page a.button{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:var(--support-text)}
+.page a.buttonPrimary{color:white}
+
+/* Tabel met horizontale scroll op smalle schermen. */
+.tableWrap{overflow-x:auto;max-width:100%}
+.table{width:100%;border-collapse:collapse;font-size:13px}
+.table th{text-align:left;font-weight:500;color:var(--support-muted);font-size:12px;padding:10px 12px;border-bottom:1px solid var(--support-line);white-space:nowrap}
+.table td{padding:12px;border-bottom:1px solid var(--support-line);vertical-align:top}
+.table tr:last-child td{border-bottom:0}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* Label-waardeparen onder elkaar. */
+.pairs{display:grid;grid-template-columns:minmax(110px,.8fr) minmax(0,1.4fr);gap:10px 20px;margin:0;font-size:13px;line-height:1.6}
+.pairs dt{color:var(--support-muted)}
+.pairs dd{margin:0;overflow-wrap:anywhere}
+
+/* Tabbladen binnen een pagina (links). */
+.tabs{display:flex;gap:2px;padding:4px;border-radius:12px;background:var(--support-input);width:fit-content;max-width:100%;overflow-x:auto;margin:0 0 20px}
+.tabs a{color:var(--support-muted)!important;text-decoration:none;font-size:13px;padding:8px 14px;border-radius:9px;white-space:nowrap}
+.tabs a:hover{color:var(--support-text)!important}
+.tabs a[aria-current]{background:linear-gradient(#2f6fba,#225eae);color:white!important;font-weight:600}
+
+/* Een rustige subkop binnen een paneel. */
+.subhead{font-size:15px;font-weight:600;margin:24px 0 12px;padding-top:20px;border-top:1px solid var(--support-line)}
+@media(max-width:560px){.pairs{grid-template-columns:1fr;gap:2px}.pairs dd{margin-bottom:10px}.tabs{width:100%}}

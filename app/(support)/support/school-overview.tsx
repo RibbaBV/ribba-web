@@ -6,6 +6,8 @@ import RibbaLogo from '../../components/RibbaLogo';
 import OwnerDashboardLink from './owner-dashboard-link';
 import type { School } from './school';
 import styles from './support-design.module.css';
+import local from './school-overview.module.css';
+import { Button, Empty, Footer, Kpi, Kpis, Page, PageHeader, Panel, Pill, Segmented, kit } from './ui/kit';
 
 function date(iso: string | null) {
   return iso ? new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -28,46 +30,42 @@ export default function SchoolOverview({ scholen, fout, toonIntern, onToonIntern
     && `${school.school_name} ${school.city ?? ''}`.toLocaleLowerCase('nl').includes(query));
   const setup = scholen.filter(school => !school.onboarding_gereed).length;
   return <div className={styles.page}>
+    {/* Topbalk voor medewerkers zonder zijmenu; binnen het eigenaarsmenu blijft alleen Uitloggen zichtbaar. */}
     <header className={styles.topbar} data-support-overview-actions>
       <div className={styles.brand}><RibbaLogo height={25} /><span>Support</span></div>
       <Link href="/support/gebruik" style={{ color: 'var(--support-link, #a8ceff)' }}>Gebruik van de app</Link>
       <OwnerDashboardLink />
       <button className={styles.quietButton} onClick={onUitloggen}>Uitloggen <span aria-hidden="true">↗</span></button>
     </header>
-    <main className={styles.content}>
-      <div className={styles.hero}>
-        <div><p className={styles.eyebrow}>Ribba voor rijscholen</p><h1>Rijscholen</h1><p className={styles.subtitle}>Vind een rijschool en help de klant verder.</p></div>
-        <span className={styles.privateNote}><span aria-hidden="true">●</span> Interne omgeving</span>
-      </div>
-      <div className={styles.stats} aria-label="Overzicht van de geladen rijscholen">
-        <div className={styles.stat}><span>Rijscholen</span><strong>{scholen.length}</strong><small>{toonIntern ? 'Inclusief testscholen' : 'Exclusief testscholen'}</small></div>
-        <div className={styles.stat}><span>Lesklaar</span><strong>{scholen.length - setup}</strong><small>Minstens één ingeschakeld lestype</small></div>
-        <div className={styles.stat}><span>Lestype nodig</span><strong>{setup}</strong><small>Nog geen ingeschakeld lestype</small></div>
-      </div>
-      <section className={styles.schoolPanel} aria-label="Rijscholen zoeken">
-        <div className={styles.toolbar}>
-          <label className={styles.search}><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input type="search" aria-label="Zoek op rijschool of plaats" placeholder="Zoek op rijschool of plaats" value={search} onChange={e => setSearch(e.target.value)} /></label>
-          <div className={styles.segmented} aria-label="Filter rijscholen">
-            <button aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>Alle rijscholen</button>
-            <button aria-pressed={filter === 'setup'} onClick={() => setFilter('setup')}>Lestype nodig <span>{setup}</span></button>
-          </div>
+    <Page>
+      <PageHeader eyebrow="Ribba voor rijscholen · interne omgeving" title="Rijscholen." subtitle="Vind een rijschool en help de klant verder." />
+      <Kpis columns={3}>
+        <Kpi label="Rijscholen" value={scholen.length} note={toonIntern ? 'Inclusief testscholen' : 'Exclusief testscholen'} />
+        <Kpi label="Lesklaar" value={scholen.length - setup} tone="ok" note="Minstens één ingeschakeld lestype" />
+        <Kpi label="Lestype nodig" value={setup} tone={setup > 0 ? 'warn' : undefined} note="Nog geen ingeschakeld lestype" />
+      </Kpis>
+      <Panel id="rijscholen-zoeken" title="Alle rijscholen" note={`${visible.length} ${visible.length === 1 ? 'rijschool' : 'rijscholen'} in deze lijst`}
+        actions={<label className={kit.inlineField}><input type="checkbox" checked={toonIntern} onChange={e => onToonIntern(e.target.checked)} /> Testscholen tonen</label>}>
+        <div className={local.toolbar}>
+          <label className={local.search}><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input type="search" aria-label="Zoek op rijschool of plaats" placeholder="Zoek op rijschool of plaats" value={search} onChange={e => setSearch(e.target.value)} /></label>
+          <Segmented label="Filter rijscholen" options={['all', 'setup'] as const} value={filter} onChange={setFilter} format={v => v === 'all' ? 'Alle rijscholen' : `Lestype nodig · ${setup}`} />
         </div>
-        <div className={styles.listMeta}><p role="status">{visible.length} {visible.length === 1 ? 'rijschool' : 'rijscholen'}</p><label><input type="checkbox" checked={toonIntern} onChange={e => onToonIntern(e.target.checked)} /> Testscholen tonen</label></div>
-        {fout && <p className={styles.error} role="alert">{fout}</p>}
-        <div className={styles.schoolList}>
-          {visible.map(school => <article className={styles.schoolRow} key={school.school_id}>
-            <div className={styles.rowMain}>
-              <div className={styles.schoolIdentity}><span className={styles.avatar} aria-hidden="true">{school.school_name.replace(/^\[[^\]]+\]\s*/, '').replace(/^rijschool\s+/i, '').slice(0, 1).toUpperCase()}</span><div><Link href={`/support/${school.school_id}`} className={styles.schoolName}>{school.school_name}<span className={styles.stretchedChevron} aria-hidden="true">↗</span></Link><p>{school.city ?? 'Plaats niet ingevuld'}{school.is_internal && <span className={styles.internal}>Testschool</span>}</p></div></div>
-              <div className={styles.rowMetric}><span>Leerlingen</span><strong>{school.leerlingen}</strong></div>
-              <div className={styles.rowMetric}><span>Laatst actief</span><strong>{lastActive(school.laatste_activiteit)}</strong></div>
-              <div className={styles.rowStatus}><span className={school.onboarding_gereed ? styles.badgeOk : styles.badgeAttention}>{school.onboarding_gereed ? 'Lesklaar' : 'Lestype nodig'}</span><span className={styles.subscription}>{subscription[school.abonnement_status ?? ''] ?? school.abonnement_status ?? 'Geen abonnementstatus'}</span></div>
+        <p role="status" className={local.srOnly}>{visible.length} {visible.length === 1 ? 'rijschool' : 'rijscholen'}</p>
+        {fout && <p className={kit.text_bad} role="alert">{fout}</p>}
+        <ul className={local.list}>
+          {visible.map(school => <li className={local.school} key={school.school_id}>
+            <div className={local.main}>
+              <div className={local.identity}><span className={local.avatar} aria-hidden="true">{school.school_name.replace(/^\[[^\]]+\]\s*/, '').replace(/^rijschool\s+/i, '').slice(0, 1).toUpperCase()}</span><div><Link href={`/support/${school.school_id}`} className={local.name}>{school.school_name} <span aria-hidden="true">↗</span></Link><p>{school.city ?? 'Plaats niet ingevuld'}{school.is_internal && <Pill tone="info">Testschool</Pill>}</p></div></div>
+              <div className={local.metric}><span>Leerlingen</span><strong>{school.leerlingen}</strong></div>
+              <div className={local.metric}><span>Laatst actief</span><strong>{lastActive(school.laatste_activiteit)}</strong></div>
+              <div className={local.status}><Pill tone={school.onboarding_gereed ? 'ok' : 'warn'}>{school.onboarding_gereed ? 'Lesklaar' : 'Lestype nodig'}</Pill><small>{subscription[school.abonnement_status ?? ''] ?? school.abonnement_status ?? 'Geen abonnementstatus'}</small></div>
             </div>
-            <details className={styles.schoolExtra}><summary>Meer gegevens <span aria-hidden="true">⌄</span></summary><dl><div><dt>Ingeschreven</dt><dd>{date(school.created_at)}</dd></div><div><dt>Leerlingen</dt><dd>{school.leerlingen}</dd></div><div><dt>Instructeurs</dt><dd>{school.instructeurs}</dd></div><div><dt>Lestypes</dt><dd>{school.lestypes}</dd></div><div><dt>Beschikbaarheid</dt><dd>{school.beschikbaarheid}</dd></div><div><dt>Lessen</dt><dd>{school.lessen}</dd></div><div><dt>CBR-koppeling</dt><dd>{school.cbr_koppeling ?? 'Niet ingericht'}</dd></div></dl></details>
-          </article>)}
-          {visible.length === 0 && !fout && <div className={styles.empty}><h2>Geen rijscholen gevonden</h2><p>{search || filter !== 'all' ? 'Probeer een andere zoekterm of toon alle rijscholen.' : 'Er zijn geen rijscholen om te tonen.'}</p>{(search || filter !== 'all') && <button className={styles.quietButton} onClick={() => { setSearch(''); setFilter('all'); }}>Zoekopdracht wissen</button>}</div>}
-        </div>
-      </section>
-      <footer className={styles.footer}>Je bekijkt schoolgegevens en aantallen, geen leerlinggegevens. Je bezoeken worden vastgelegd in het supportlogboek.</footer>
-    </main>
+            <details className={local.extra}><summary>Meer gegevens</summary><dl className={kit.facts}><div><dt>Ingeschreven</dt><dd>{date(school.created_at)}</dd></div><div><dt>Leerlingen</dt><dd>{school.leerlingen}</dd></div><div><dt>Instructeurs</dt><dd>{school.instructeurs}</dd></div><div><dt>Lestypes</dt><dd>{school.lestypes}</dd></div><div><dt>Beschikbaarheid</dt><dd>{school.beschikbaarheid}</dd></div><div><dt>Lessen</dt><dd>{school.lessen}</dd></div><div><dt>CBR-koppeling</dt><dd>{school.cbr_koppeling ?? 'Niet ingericht'}</dd></div></dl></details>
+          </li>)}
+        </ul>
+        {visible.length === 0 && !fout && <><Empty>{search || filter !== 'all' ? 'Geen rijscholen gevonden. Probeer een andere zoekterm of toon alle rijscholen.' : 'Er zijn geen rijscholen om te tonen.'}</Empty>{(search || filter !== 'all') && <Button onClick={() => { setSearch(''); setFilter('all'); }}>Zoekopdracht wissen</Button>}</>}
+      </Panel>
+      <Footer>Je bekijkt schoolgegevens en aantallen, geen leerlinggegevens. Je bezoeken worden vastgelegd in het supportlogboek.</Footer>
+    </Page>
   </div>;
 }
