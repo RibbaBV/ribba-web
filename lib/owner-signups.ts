@@ -1,7 +1,9 @@
 // Inschrijvingendashboard voor de eigenaar (19 nov 2026, werkitem A7).
-// Bron: owner_signup_weeks versie 2 (ribbaPro 20261119160000): tellingen per
-// week plus de lijst inschrijvingen met schoolnaam, plaats en fase. Geen
+// Bron: owner_signup_weeks (ribbaPro 20261119160000, v2): tellingen per week
+// plus de lijst inschrijvingen met schoolnaam, plaats en fase. Geen
 // e-mailadressen, telefoonnummers of bedragen. Definities staan in die migratie.
+// Versie 3 (ribbaPro 20261120090000, 20 nov) voegt herkomst toe; een v2-payload
+// zonder herkomst blijft geldig en toont dan "nog niet beschikbaar".
 export const signupWeekOptions = [4, 12, 26] as const;
 export type SignupWeekOption = typeof signupWeekOptions[number];
 export const signupFields = ['started','checkout','abandoned','open','activated','trialing','paying','stopped'] as const;
@@ -9,13 +11,21 @@ export type SignupField = typeof signupFields[number];
 export type SignupCounts = Record<SignupField, number>;
 export const signupStages = ['paying','trialing','stopped','activated','checkout','abandoned','open'] as const;
 export type SignupStage = typeof signupStages[number];
-export interface Signup { created_at:string; name:string; city:string|null; stage:SignupStage }
+export const signupOrigins = ['tip','campaign','ad','website','other_site','unknown'] as const;
+export type SignupOrigin = typeof signupOrigins[number];
+export const originLabels: Record<SignupOrigin,string> = {
+ tip:'Ambassadeur-tip',campaign:'Campagne',ad:'Advertentie',website:'Via ribba.nl',other_site:'Andere website',unknown:'Onbekend',
+};
+export interface OriginRow { origin:SignupOrigin; label:string|null; started:number; checkout:number; customers:number }
+export interface Signup { created_at:string; name:string; city:string|null; stage:SignupStage; origin?:SignupOrigin; origin_label?:string|null }
 export interface SignupWeeks {
  status:'ready';captured_at:string;definition_version:number;weeks_requested:number;from:string;
  abandon_after_days:number;excluded_tests:number;last_signup_at:string|null;
  weeks:(SignupCounts&{week_start:string})[];
  totals:SignupCounts;
  signups:Signup[];
+ /** null bij een payload van vóór versie 3. */
+ origins:OriginRow[]|null;
 }
 export const stageLabels: Record<SignupStage,string> = {
  paying:'Betaalt',trialing:'In proef',stopped:'Gestopt',activated:'Account, nog geen abonnement',
@@ -42,7 +52,24 @@ function signup(v: unknown): Signup|null {
  const o = v as Record<string, unknown>;
  if (!isTime(o.created_at) || typeof o.name !== 'string' || !(o.city === null || typeof o.city === 'string')
   || !(signupStages as readonly unknown[]).includes(o.stage)) return null;
- return { created_at:o.created_at as string, name:o.name, city:(o.city as string|null)||null, stage:o.stage as SignupStage };
+ const out: Signup = { created_at:o.created_at as string, name:o.name, city:(o.city as string|null)||null, stage:o.stage as SignupStage };
+ if (o.origin !== undefined) {
+  if (!isOrigin(o.origin) || !isLabel(o.origin_label)) return null;
+  out.origin = o.origin; out.origin_label = (o.origin_label as string|null)||null;
+ }
+ return out;
+}
+const isOrigin = (v: unknown): v is SignupOrigin => (signupOrigins as readonly unknown[]).includes(v);
+const isLabel = (v: unknown) => v === null || v === undefined || (typeof v === 'string' && v.length <= 200);
+function originRow(v: unknown): OriginRow|null {
+ if (!v || typeof v !== 'object') return null;
+ const o = v as Record<string, unknown>;
+ if (!isOrigin(o.origin) || !isLabel(o.label) || !isCount(o.started) || !isCount(o.checkout) || !isCount(o.customers)) return null;
+ return { origin:o.origin, label:(o.label as string|null)||null, started:o.started as number, checkout:o.checkout as number, customers:o.customers as number };
+}
+/** Korte omschrijving van één herkomst, bv. "Campagne · instantly / email / warm". */
+export function originText(origin: SignupOrigin, label: string|null|undefined): string {
+ return label && origin !== 'website' ? `${originLabels[origin]} · ${label}` : originLabels[origin];
 }
 function counts(v: unknown): SignupCounts|null {
  if (!v || typeof v !== 'object') return null;
@@ -71,11 +98,17 @@ export function parseSignupWeeks(value: unknown): SignupWeeks|null {
  }
  const signups: Signup[] = [];
  for (const x of v.signups) { const r = signup(x); if (!r) return null; signups.push(r); }
+ let origins: OriginRow[]|null = null;
+ if (v.origins !== undefined) {
+  if (!Array.isArray(v.origins)) return null;
+  origins = [];
+  for (const x of v.origins) { const r = originRow(x); if (!r) return null; origins.push(r); }
+ }
  return {
   status:'ready',captured_at:v.captured_at as string,definition_version:v.definition_version as number,
   weeks_requested:v.weeks_requested as number,from:v.from as string,
   abandon_after_days:v.abandon_after_days as number,excluded_tests:v.excluded_tests as number,
-  last_signup_at:(v.last_signup_at as string|null),weeks,totals,signups,
+  last_signup_at:(v.last_signup_at as string|null),weeks,totals,signups,origins,
  };
 }
 
