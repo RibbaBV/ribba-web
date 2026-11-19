@@ -31,7 +31,7 @@ export default function DashboardView({data,error,collecting,unauthorized,days,o
      <p className={styles.note}>Een signaal is een aanleiding om te kijken. Vakantie of automatisch aangemaakte records kunnen het beeld beïnvloeden.</p>
     </section>
     </div>
-    <Link className={styles.workflowLink} href="/support/dashboard/inschrijvingen"><span>Inschrijvingen per week <small>Van start tot betalend</small></span><span>Bekijk weekoverzicht →</span></Link>
+    <Link className={styles.workflowLink} href="/support/dashboard/inschrijvingen"><span>Inschrijvingen <small>Wie schreef zich in, wie betaalt</small></span><span>Bekijk inschrijvingen →</span></Link>
     <Link className={styles.workflowLink} href="/support/dashboard/journey"><span>Appmetingen <small>Wizard en pakketaanmaak</small></span><span>Bekijk meetstatus →</span></Link>
     <div className={styles.panels}>
      <section className={styles.card}><h2>Van aanmelding naar eerste les</h2><p className={styles.note}>Van de {data.onboarding.total} nieuwe rijscholen in deze {days} dagen</p>
