@@ -22,5 +22,5 @@ test('vóór de databasewijziging: alleen wat al bekend is, geen "undefined"', (
 
 test('de kaart staat op de leerlingenpagina en toont registration_hint', () => {
   const src = readFileSync('app/(support)/support/dashboard/learners/page.tsx', 'utf8');
-  assert.match(src, /<span>Zelf aangemeld · zonder uitnodiging<\/span><strong>\{data\.metrics\.registration_hint\}<\/strong><small>\{zelfAangemeldUitleg\(data\.metrics\)\}<\/small>/);
+  assert.match(src, /<Kpi label="Zelf aangemeld · zonder uitnodiging" value=\{data\.metrics\.registration_hint\} note=\{zelfAangemeldUitleg\(data\.metrics\)\}\/>/);
 });

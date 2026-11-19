@@ -81,7 +81,35 @@
 .buttonPrimary{background:linear-gradient(120deg,#2f6fba,#225eae);border-color:#4b79ae;color:white}
 .state{color:var(--support-muted)}
 .state p{margin:0 0 12px}
+.button:disabled{opacity:.5;cursor:not-allowed}
+
+/* Formulieren: label boven het veld, twee kolommen, op telefoon één. */
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:0 0 18px;align-items:end}
+.form fieldset{display:contents}
+.field{display:grid;gap:8px;font-size:13px;color:var(--support-muted);min-width:0}
+.fieldWide{grid-column:1/-1}
+.field input,.field select{width:100%;min-width:0;min-height:44px;padding:10px 12px;background:var(--support-input);border:1px solid var(--support-line);border-radius:10px;color:var(--support-text);font:inherit;font-size:14px}
+.field input:focus-visible,.field select:focus-visible,.button:focus-visible,.segmented button:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+.formEnd{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.inlineField{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--support-muted)}
+.inlineField select{min-height:40px;max-width:280px;padding:8px 12px;background:var(--support-input);border:1px solid var(--support-line);border-radius:10px;color:var(--support-text);font:inherit;font-size:14px}
+
+/* Feiten naast elkaar: label klein, waarde eronder. */
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin:0;font-size:14px}
+.facts dt{color:var(--support-muted);font-size:12px;margin-bottom:4px}
+.facts dd{margin:0;font-variant-numeric:tabular-nums}
+
+/* Tijdlijn: tijd links, gebeurtenis rechts. */
+.timeline{list-style:none;margin:0;padding:0}
+.timeline li{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;padding:12px 0;border-top:1px solid var(--support-line)}
+.timeline li:first-child{border-top:0;padding-top:0}
+.timeline time,.timeline small{color:var(--support-muted);font-size:13px}
+.prose p{color:var(--support-muted);line-height:1.65;margin:0 0 10px}
+.prose p:last-child{margin-bottom:0}
+.prose a,.page a{color:var(--support-link)}
 
 @media(max-width:900px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}}
-@media(max-width:560px){.page{padding:24px 16px 32px}.title{font-size:30px}.panel{padding:18px}.kpi{padding:16px 18px}.kpiValue{font-size:34px}.row{grid-template-columns:minmax(0,1fr) auto;row-gap:4px}.rowMeta{grid-row:2;grid-column:1}.rowEnd{grid-row:1/3;grid-column:2}.rowMain{flex-direction:column;gap:2px}}
+@media(max-width:560px){.page{padding:24px 16px 32px}.title{font-size:30px}.panel{padding:18px}.kpi{padding:16px 18px}.kpiValue{font-size:34px}.row{grid-template-columns:minmax(0,1fr) auto;row-gap:4px}.rowMeta{grid-row:2;grid-column:1}.rowEnd{grid-row:1/3;grid-column:2}.rowMain{flex-direction:column;gap:2px}.form{grid-template-columns:1fr}.timeline li{grid-template-columns:1fr;gap:4px}}
 @media(prefers-reduced-motion:reduce){.tile,.button{transition:none}}
+.bigFact{font-size:30px;font-weight:600;line-height:1.15;margin:2px 0 4px!important}
+.factNote{color:var(--support-muted);font-size:12px}

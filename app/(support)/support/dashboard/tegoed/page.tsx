@@ -5,7 +5,7 @@ import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {useSupportToken} from '../../client';
 import {doorLabel,hoeveelheid,oorzaakLabel,verschil,type TegoedLogboek,type TegoedPotje,type TegoedRegel,type TegoedZoekRij} from '@/lib/tegoed-logboek';
-import styles from '../../support-design.module.css';
+import {Button,Empty,Note,Page,PageHeader,Panel,Pill,StateMessage,kit} from '../../ui/kit';
 import local from './tegoed.module.css';
 
 const tijd=(v:string)=>new Date(v).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short'});
@@ -13,10 +13,10 @@ const datum=(v:string)=>new Date(`${v}T12:00:00`).toLocaleDateString('nl-NL',{we
 
 export default function TegoedPage(){
  const {token,status,isCurrentToken}=useSupportToken();
- return <main className={styles.page}><div className={styles.content}>
-  <header className={styles.hero}><div><p className={styles.eyebrow}>RIBBA · ALLEEN EIGENAAR</p><h1>Tegoedlogboek.</h1><p className={styles.subtitle}>Zie per leerling wanneer en waardoor een tegoedpotje veranderde: lessen, betalingen en handmatige aanpassingen.</p></div></header>
-  {token?<Tegoed token={token} isCurrentToken={isCurrentToken}/>:status==='laden'?<p role="status">Sessie controleren…</p>:<div><p>Je supportsessie is verlopen of je bent niet ingelogd. Log in met je eigenaaraccount en tweefactor om het logboek te openen.</p><Link href="/support" className={styles.quietButton}>Inloggen</Link></div>}
- </div></main>;
+ return <Page>
+  <PageHeader eyebrow="Ribba · alleen eigenaar" title="Tegoedlogboek." subtitle="Zie per leerling wanneer en waardoor een tegoedpotje veranderde: lessen, betalingen en handmatige aanpassingen."/>
+  {token?<Tegoed token={token} isCurrentToken={isCurrentToken}/>:status==='laden'?<StateMessage>Sessie controleren…</StateMessage>:<div className={kit.state}><p>Je supportsessie is verlopen of je bent niet ingelogd. Log in met je eigenaaraccount en tweefactor om het logboek te openen.</p><Link href="/support" className={kit.button}>Inloggen</Link></div>}
+ </Page>;
 }
 
 type Verzoek={token:string;body:Record<string,string>};
@@ -48,47 +48,43 @@ function Tegoed({token,isCurrentToken}:{token:string;isCurrentToken:(t:string)=>
 
  if(boek)return <Logboek antwoord={b.huidig} laden={b.laden} terug={()=>setBoek(null)} opnieuw={()=>setBoek({...boek})}/>;
 
- return <section className={`${styles.schoolPanel} ${local.panel}`} aria-labelledby="zoek-title"><h2 id="zoek-title">Leerling zoeken</h2>
-  <p className={styles.subtitle}>Naam, e-mailadres en tegoed zijn persoonsgegevens. Geef aan waarom je kijkt; elke zoekopdracht en elk geopend logboek wordt vastgelegd. Zet geen leerlinggegevens in de reden.</p>
-  <form className={local.form} onSubmit={e=>{e.preventDefault();setZoek({token,body:{modus:'zoek',query:query.trim(),reason:reason.trim()}});}}>
-   <label>Naam of e-mailadres<input value={query} onChange={e=>setQuery(e.target.value)} minLength={2} maxLength={100} required autoComplete="off"/></label>
-   <label className={local.reason}>Reden voor inzage<input value={reason} onChange={e=>setReason(e.target.value)} minLength={10} maxLength={300} required placeholder="Bijvoorbeeld: nagaan waarom een potje negatief staat" autoComplete="off"/></label>
-   <button className={styles.quietButton} disabled={!redenOk||query.trim().length<2||z.laden}>{z.laden?'Zoeken…':'Zoeken'}</button>
+ return <Panel id="zoek-title" title="Leerling zoeken" note="Naam, e-mailadres en tegoed zijn persoonsgegevens. Geef aan waarom je kijkt; elke zoekopdracht en elk geopend logboek wordt vastgelegd. Zet geen leerlinggegevens in de reden.">
+  <form className={kit.form} onSubmit={e=>{e.preventDefault();setZoek({token,body:{modus:'zoek',query:query.trim(),reason:reason.trim()}});}}>
+   <label className={kit.field}>Naam of e-mailadres<input value={query} onChange={e=>setQuery(e.target.value)} minLength={2} maxLength={100} required autoComplete="off"/></label>
+   <label className={`${kit.field} ${kit.fieldWide}`}>Reden voor inzage<input value={reason} onChange={e=>setReason(e.target.value)} minLength={10} maxLength={300} required placeholder="Bijvoorbeeld: nagaan waarom een potje negatief staat" autoComplete="off"/></label>
+   <div className={kit.formEnd}><Button primary type="submit" disabled={!redenOk||query.trim().length<2||z.laden}>{z.laden?'Zoeken…':'Zoeken'}</Button></div>
   </form>
-  {z.huidig?.error&&<p role="alert" className={styles.error}>{z.huidig.error}</p>}
-  {z.huidig?.data&&(z.huidig.data.length===0?<p className={styles.empty}>Geen leerlingen gevonden.</p>:<div className={local.rows}>
-   {z.huidig.data.length===20&&<p className={styles.subtitle}>De eerste 20 treffers. Maak de zoekterm specifieker als de leerling er niet bij staat.</p>}
+  {z.huidig?.error&&<p role="alert" className={kit.text_bad}>{z.huidig.error}</p>}
+  {z.huidig?.data&&(z.huidig.data.length===0?<Empty>Geen leerlingen gevonden.</Empty>:<div className={local.rows}>
+   {z.huidig.data.length===20&&<Note>De eerste 20 treffers. Maak de zoekterm specifieker als de leerling er niet bij staat.</Note>}
    {z.huidig.data.map(r=><article className={local.row} key={r.student_id}>
     <div><h3>{r.naam||'Naam onbekend'}</h3><p>{r.email??'Geen e-mailadres'}</p></div>
     <div><p><Link href={`/support/${r.school_id}`}>{r.school}</Link></p><small>{r.potjes} {r.potjes===1?'potje':'potjes'} · {r.logregels} {r.logregels===1?'logregel':'logregels'}</small></div>
-    <div><button className={styles.quietButton} disabled={!redenOk} onClick={()=>open(r.student_id)}>Logboek bekijken</button></div>
+    <div><Button disabled={!redenOk} onClick={()=>open(r.student_id)}>Logboek bekijken</Button></div>
    </article>)}
   </div>)}
- </section>;
+ </Panel>;
 }
 
 function Logboek({antwoord,laden,terug,opnieuw}:{antwoord:Antwoord<TegoedLogboek>|null;laden:boolean;terug:()=>void;opnieuw:()=>void}){
  const [filter,setFilter]=useState('alle');
  const data=antwoord?.data;
- const terugKnop=<button className={styles.quietButton} onClick={terug}>← Terug naar zoeken</button>;
- if(laden||!antwoord)return <section className={`${styles.schoolPanel} ${local.panel}`}>{terugKnop}<p role="status">Logboek laden…</p></section>;
- if(!data)return <section className={`${styles.schoolPanel} ${local.panel}`}>{terugKnop}<p role="alert" className={styles.error}>{antwoord.error}</p><button className={styles.quietButton} onClick={opnieuw}>Opnieuw proberen</button></section>;
+ const terugKnop=<p className={local.terug}><Button onClick={terug}>← Terug naar zoeken</Button></p>;
+ if(laden||!antwoord)return <>{terugKnop}<StateMessage>Logboek laden…</StateMessage></>;
+ if(!data)return <>{terugKnop}<StateMessage error={antwoord.error} onRetry={opnieuw}/></>;
  const potjes=new Map(data.potjes.map(p=>[p.bucket_id,p]));
  const regels=filter==='alle'?data.regels:data.regels.filter(r=>r.bucket_id===filter);
+ const negatief=data.potjes.filter(p=>p.vrij<0).length;
  return <>
-  <section className={`${styles.schoolPanel} ${local.panel}`} aria-labelledby="leerling-title">
-   {terugKnop}
-   <h2 id="leerling-title" className={local.naam}>{data.leerling.naam||'Naam onbekend'}</h2>
-   <p className={styles.subtitle}>{data.leerling.email??'Geen e-mailadres'} · <Link href={`/support/${data.leerling.school_id}`}>{data.leerling.school}</Link></p>
-   <h3 className={local.kop}>Potjes nu</h3>
-   {data.potjes.length===0?<p className={styles.empty}>Deze leerling heeft geen potjes.</p>:<div className={local.potjes}>{data.potjes.map(p=><Potje key={p.bucket_id} p={p}/>)}</div>}
-  </section>
-  <section className={`${styles.schoolPanel} ${local.panel}`} aria-labelledby="regels-title">
-   <h2 id="regels-title">Wijzigingen</h2>
-   <p className={styles.subtitle}>Nieuwste bovenaan. Het logboek loopt sinds {data.logboek_sinds?tijd(data.logboek_sinds):'11 nov 2026'}; wat daarvóór gebeurde staat er niet in.{data.totaal>data.regels.length?` De laatste ${data.regels.length} van ${data.totaal} wijzigingen.`:''}</p>
-   {data.potjes.length>1&&<label className={local.filter}>Potje<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="alle">Alle potjes</option>{data.potjes.map(p=><option key={p.bucket_id} value={p.bucket_id}>{p.potje}</option>)}</select></label>}
-   {regels.length===0?<p className={styles.empty}>Nog geen wijzigingen vastgelegd.</p>:<ol className={local.regels}>{regels.map(r=><Regel key={r.id} r={r} p={potjes.get(r.bucket_id)}/>)}</ol>}
-  </section>
+  {terugKnop}
+  <Panel id="leerling-title" title={data.leerling.naam||'Naam onbekend'} note={<>{data.leerling.email??'Geen e-mailadres'} · <Link href={`/support/${data.leerling.school_id}`}>{data.leerling.school}</Link></>}
+   actions={data.potjes.length>0&&(negatief>0?<Pill tone="bad">{negatief===1?'1 potje negatief':`${negatief} potjes negatief`}</Pill>:<Pill tone="ok">Geen negatieve potjes</Pill>)}>
+   {data.potjes.length===0?<Empty>Deze leerling heeft geen potjes.</Empty>:<div className={local.potjes}>{data.potjes.map(p=><Potje key={p.bucket_id} p={p}/>)}</div>}
+  </Panel>
+  <Panel id="regels-title" title="Wijzigingen" note={`Nieuwste bovenaan. Het logboek loopt sinds ${data.logboek_sinds?tijd(data.logboek_sinds):'11 nov 2026'}; wat daarvóór gebeurde staat er niet in.${data.totaal>data.regels.length?` De laatste ${data.regels.length} van ${data.totaal} wijzigingen.`:''}`}
+   actions={data.potjes.length>1&&<label className={kit.inlineField}>Potje<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="alle">Alle potjes</option>{data.potjes.map(p=><option key={p.bucket_id} value={p.bucket_id}>{p.potje}</option>)}</select></label>}>
+   {regels.length===0?<Empty>Nog geen wijzigingen vastgelegd.</Empty>:<ol className={local.regels}>{regels.map(r=><Regel key={r.id} r={r} p={potjes.get(r.bucket_id)}/>)}</ol>}
+  </Panel>
  </>;
 }
 
