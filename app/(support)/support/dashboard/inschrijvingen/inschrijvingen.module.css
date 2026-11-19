@@ -1,0 +1,11 @@
+.panel{padding:24px;margin-bottom:24px}.panel h2{font-size:20px;margin:0 0 16px}.panel p,.panel small{line-height:1.65;color:var(--support-muted)}
+.stats6{grid-template-columns:repeat(6,minmax(0,1fr))}
+.period{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 24px}.period button[aria-pressed=true]{outline:2px solid var(--support-link)}
+.tableWrap{overflow-x:auto}
+.table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+.table th,.table td{padding:10px 8px;border-bottom:1px solid var(--support-line);text-align:right;white-space:nowrap}
+.table th:first-child,.table td:first-child{text-align:left}
+.table th{color:var(--support-muted);font-weight:600;font-size:12px}
+.zero{opacity:.45}
+@media(max-width:1000px){.stats6{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:650px){.panel{padding:18px}.stats6{grid-template-columns:repeat(2,minmax(0,1fr))}}
