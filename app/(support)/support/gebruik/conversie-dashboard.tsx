@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { metricValue, linePaths, rollingRate, type ConversionReport, type DailyPoint, type Metric, type Segment } from '@/lib/conversion-metrics';
 import type { Periode } from '@/lib/app-gebruik';
-import common from '../support-design.module.css';
+import { Button, Segmented, StateMessage, kit } from '../ui/kit';
 import styles from './conversies.module.css';
 
 export default function ConversieDashboard({ token, isCurrentToken }: { token: string; isCurrentToken: (t: string) => boolean }) {
@@ -20,12 +20,12 @@ export default function ConversieDashboard({ token, isCurrentToken }: { token: s
  const visible=response?.key===key?response:null;
  return <>
   <div className={styles.toolbar}>
-   <div className={common.segmented} role="group" aria-label="Doelgroep"><button aria-pressed={segment==='leerlingen'} onClick={()=>setSegment('leerlingen')}>Leerlingen</button><button aria-pressed={segment==='rijscholen'} onClick={()=>setSegment('rijscholen')}>Rijscholen</button></div>
-   <div className={common.segmented} role="group" aria-label="Conversieperiode">{([7,30,90] as const).map(n=><button key={n} aria-pressed={days===n} onClick={()=>setDays(n)}>{n} dagen</button>)}</div>
-   <label className={styles.internal}><input type="checkbox" checked={intern} onChange={e=>setIntern(e.target.checked)}/> Test- en pilotscholen</label>
-   <button className={common.quietButton} onClick={()=>refresh(n=>n+1)}>Verversen</button>
+   <Segmented label="Doelgroep" options={['leerlingen','rijscholen'] as const} value={segment} onChange={setSegment} format={v=>v==='leerlingen'?'Leerlingen':'Rijscholen'}/>
+   <Segmented label="Conversieperiode" options={[7,30,90] as const} value={days} onChange={setDays} format={n=>`${n} dagen`}/>
+   <label className={kit.inlineField}><input type="checkbox" checked={intern} onChange={e=>setIntern(e.target.checked)}/> Test- en pilotscholen</label>
+   <Button onClick={()=>refresh(n=>n+1)}>Verversen</Button>
   </div>
-  {visible?.data?<ConversieOverzicht key={`${days}-${segment}-${intern}`} data={visible.data}/>:<div className={styles.notice} role="status"><p>{visible?.error??'Conversies en dagelijkse cohorten laden…'}</p>{visible?.error&&!visible.denied&&<button className={common.quietButton} onClick={()=>refresh(n=>n+1)}>Opnieuw proberen</button>}</div>}
+  {visible?.data?<ConversieOverzicht key={`${days}-${segment}-${intern}`} data={visible.data}/>:<div className={`${kit.panel} ${styles.notice}`}><StateMessage error={visible?.error} onRetry={visible?.denied?undefined:()=>refresh(n=>n+1)}>Conversies en dagelijkse cohorten laden…</StateMessage></div>}
  </>;
 }
 const shortDate=(date:string)=>new Intl.DateTimeFormat('nl-NL',{day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(date+'T12:00:00Z'));

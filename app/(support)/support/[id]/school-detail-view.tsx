@@ -18,7 +18,6 @@
 import Link from 'next/link';
 import type { SchoolOwners } from '@/lib/support-school-owner';
 import { useEffect, useState } from 'react';
-import OwnerDashboardLink from '../owner-dashboard-link';
 import { withCbrRecovery, type SupportEvent } from '@/lib/support-event-recovery';
 
 interface Stap {
@@ -130,7 +129,9 @@ function tegenspraak(licentie: Licentie | null, abo: Detail['abonnement']): stri
 }
 
 import styles from './detail-design.module.css';
-import RibbaLogo from '../../../components/RibbaLogo';
+import { Banner, Empty, Grid, Kpi, Kpis, Note, Page, PageHeader, Panel, Pill, Row, Rows, kit } from '../ui/kit';
+
+const SECTIES = [['overzicht', 'Overzicht'], ['gegevens', 'Schoolgegevens'], ['account', 'Account en koppelingen'], ['activiteit', 'Gebeurtenissen']] as const;
 
 export default function SchoolDetailView({ id, detail, events }: { id: string; detail: Detail; events: SupportEvent[] }) {
   const { school, onboarding } = detail;
@@ -148,282 +149,137 @@ export default function SchoolDetailView({ id, detail, events }: { id: string; d
   // geen licentieblok, en blijft alleen het Stripe-deel over.
   const licentie = detail.licentie ?? null;
   const conflict = tegenspraak(licentie, detail.abonnement);
+  const gereed = onboarding.filter(stap => stap.gereed).length;
 
   return (
-    <div className={styles.page}>
-      <header className={styles.topbar} data-support-local-navigation><Link href="/support" aria-label="Ribba Support overzicht"><RibbaLogo height={25} /></Link><span>Support</span><OwnerDashboardLink /></header>
-      <main className={styles.content}>
-      <Link href="/support" style={s.terug}>← Alle rijscholen</Link>
-
-      <div className={styles.hero}>
-        <div><p className={styles.eyebrow}>Schooldossier {school.is_internal && <span style={s.intern}>Testschool</span>}</p>
-          <h1 className={styles.title}>{school.naam}</h1>
-          <p className={styles.subtitle}>{school.plaats ?? 'Plaats niet ingevuld'} · ingeschreven {datum(school.aangemaakt)}</p>
-          {detail.owners && <p className={styles.subtitle}><strong>{detail.owners.status === 'ready' && detail.owners.names.length > 1 ? 'Eigenaren' : 'Eigenaar'}:</strong> {detail.owners.status === 'unavailable' ? 'Naam tijdelijk niet beschikbaar' : detail.owners.names.join(', ') || 'Geen eigenaaraccount gekoppeld'}</p>}
-        </div>
-        <Link href={`/support/${id}/bewerken`} className={styles.primaryButton}>Schoolgegevens bewerken <span aria-hidden="true">↗</span></Link>
-      </div>
-      <nav className={styles.navigation} aria-label="Onderdelen van het schooldossier">
-        {[['overzicht','Overzicht'],['gegevens','Schoolgegevens'],['account','Account en koppelingen'],['activiteit','Gebeurtenissen']].map(([key,label])=><a key={key} href={`#${key}`} onClick={event=>{if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();setSection(key);if(window.location.hash!==`#${key}`)window.history.pushState(null,'',`#${key}`);}} aria-current={section===key?'page':undefined}>{label}</a>)}
-      </nav>
+    <Page>
+      <p className={kit.note} style={{ margin: '0 0 18px' }}><Link href="/support">← Alle rijscholen</Link></p>
+      <PageHeader eyebrow="Schooldossier" title={school.naam}
+        subtitle={<>{school.plaats ?? 'Plaats niet ingevuld'} · ingeschreven {datum(school.aangemaakt)}
+          {detail.owners && <><br/><strong>{detail.owners.status === 'ready' && detail.owners.names.length > 1 ? 'Eigenaren' : 'Eigenaar'}:</strong> {detail.owners.status === 'unavailable' ? 'Naam tijdelijk niet beschikbaar' : detail.owners.names.join(', ') || 'Geen eigenaaraccount gekoppeld'}</>}</>}
+        actions={<>{school.is_internal && <Pill tone="info">Testschool</Pill>}<Link href={`/support/${id}/bewerken`} className={`${kit.button} ${kit.buttonPrimary}`}>Schoolgegevens bewerken <span aria-hidden="true">↗</span></Link></>} />
 
       {licentie?.is_proef && (
         // Een proef die deze week afloopt is het eerste wat je wil weten als je
-        // deze rijschool aan de lijn krijgt, dus die staat boven en niet in een
-        // kaart verderop.
-        <div style={
-          licentie.proef_verlopen ? s.signaalRood
-          : (licentie.proef_dagen_resterend ?? 99) <= 7 ? s.signaal
-          : s.signaalInfo
-        }>
-          {licentie.proef_verlopen ? (
-            <>Proefabonnement <strong>verlopen</strong> op {datum(licentie.proef_tot)}</>
-          ) : (
-            <>
-              Proefabonnement loopt nog{' '}
-              <strong>{dagen(licentie.proef_dagen_resterend ?? 0)}</strong>
-              {' '}— tot {datum(licentie.proef_tot)}
-            </>
-          )}
-        </div>
+        // deze rijschool aan de lijn krijgt, dus die staat bovenaan.
+        <Banner tone={licentie.proef_verlopen ? 'bad' : (licentie.proef_dagen_resterend ?? 99) <= 7 ? 'warn' : 'info'}>
+          {licentie.proef_verlopen
+            ? <span>Proefabonnement <strong>verlopen</strong> op {datum(licentie.proef_tot)}</span>
+            : <span>Proefabonnement loopt nog <strong>{dagen(licentie.proef_dagen_resterend ?? 0)}</strong> — tot {datum(licentie.proef_tot)}</span>}
+        </Banner>
       )}
+      {conflict && <Banner tone="bad">{conflict}</Banner>}
+      {gestopt
+        ? <Banner tone="warn"><span>Eerstvolgende openstaande stap: <strong>{gestopt.label}</strong>{gestopt.blokkerend && ' — dit blokkeert het gebruik van de app'}</span></Banner>
+        : !licentie?.is_proef && !conflict && <Banner tone="ok">Alle huidige instelstappen zijn voltooid.</Banner>}
 
-      {conflict && <div style={s.signaalRood}>{conflict}</div>}
+      <nav className={kit.tabs} aria-label="Onderdelen van het schooldossier">
+        {SECTIES.map(([key, label]) => <a key={key} href={`#${key}`} onClick={event => { if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); setSection(key); if (window.location.hash !== `#${key}`) window.history.pushState(null, '', `#${key}`); }} aria-current={section === key ? 'page' : undefined}>{label}</a>)}
+      </nav>
 
-      {gestopt && (
-        <div style={s.signaal}>
-          Eerstvolgende openstaande stap: <strong>{gestopt.label}</strong>
-          {gestopt.blokkerend && ' — dit blokkeert het gebruik van de app'}
-        </div>
-      )}
-
-      {section === 'overzicht' && <div className={styles.metrics} aria-label="Huidige schoolgegevens">{[['leerlingen','Leerlingen'],['lessen','Lesrecords'],['pakketten','Pakketten'],['facturen','Factuurrecords']].map(([key,label])=><article key={key}><span>{label}</span><strong>{detail.aantallen?.[key]?.toLocaleString('nl-NL') ?? '—'}</strong><small>Huidige stand · geen periodemeting</small></article>)}</div>}
-      <div className={styles.grid} style={section !== 'overzicht' ? {gridTemplateColumns:'minmax(0,1fr)'} : undefined}>
-        <section className={styles.card} id="overzicht" hidden={section !== 'overzicht'}>
-          <div className={styles.cardHeading}><h2 className={styles.sectionTitle}>Aan de slag</h2><span>{onboarding.filter(stap => stap.gereed).length} van {onboarding.length} stappen</span></div>
-          <p className={styles.voetnoot}>{gestopt ? `Volgende stap: ${gestopt.label}` : 'Alle huidige instelstappen zijn voltooid.'}</p>
-          <details><summary className={styles.expandSteps}>Alle instelstappen bekijken</summary><ol style={s.stappen}>
-            {onboarding.map((stap) => (
-              <li key={stap.sleutel} className={styles.stap}>
-                <span style={stap.gereed ? s.bolOk : (stap.blokkerend ? s.bolBlok : s.bolLeeg)} />
-                <span style={stap.gereed ? s.stapLabel : s.stapLabelOpen}>{stap.label}</span>
-                <span className={styles.stapDatum}>
-                  {stap.wanneer ? moment(stap.wanneer) : (stap.gereed ? 'gedaan' : '—')}
-                </span>
-              </li>
-            ))}
-          </ol></details>
-        </section>
-
-        <section className={styles.card} hidden={section !== 'overzicht'}>
-          <h2 className={styles.sectionTitle}>Abonnement</h2>
-          <p className={styles.voetnoot}>
-            Betaald loopt via Stripe; de proefperiode wordt op dit moment nog
-            door Ribba zelf gezet. Twee bronnen, dus apart getoond.
-          </p>
-          <dl className={styles.lijst}>
-            <Rij label="Ribba-licentie" waarde={licentie ? planLabel(licentie.plan) : 'geen licentie'} />
-            <Rij label="Proefabonnement" waarde={
-              !licentie?.is_proef ? 'nee'
-              : licentie.proef_verlopen ? `verlopen op ${datum(licentie.proef_tot)}`
-              : `tot ${datum(licentie.proef_tot)} · nog ${dagen(licentie.proef_dagen_resterend ?? 0)}`
-            } />
-            {licentie && !licentie.is_proef && licentie.proef_tot && (
-              // Historie: deze rijschool ís via een proef binnengekomen.
-              <Rij label="Eerdere proef liep tot" waarde={datum(licentie.proef_tot)} />
-            )}
-            <Rij label="Licentie gestart" waarde={licentie ? datum(licentie.gestart) : null} />
-            {licentie?.opgezegd && <Rij label="Licentie opgezegd" waarde={moment(licentie.opgezegd)} />}
-            {licentie?.loopt_tot && <Rij label="Licentie loopt tot" waarde={datum(licentie.loopt_tot)} />}
-            <Rij label="Stripe-abonnement" waarde={detail.abonnement
-              ? `${detail.abonnement.status}${detail.abonnement.plan ? ` · ${detail.abonnement.plan}` : ''}`
-              : 'geen'} />
-            {detail.abonnement && (
-              <>
-                <Rij label="Stripe gestart" waarde={datum(detail.abonnement.gestart)} />
-                <Rij label="Periode loopt tot" waarde={datum(detail.abonnement.loopt_tot)} />
-              </>
-            )}
-          </dl>
-        </section>
-
-        <section className={styles.card} id="gegevens" hidden={section !== 'gegevens'}>
-          <div className={styles.cardHeading}><h2 className={styles.sectionTitle}>Schoolgegevens</h2><Link href={`/support/${id}/bewerken`}>Bewerken ↗</Link></div>
-          <dl className={styles.lijst}>
-            <Rij label="E-mail" waarde={school.email} />
-            <Rij label="Telefoon" waarde={school.telefoon} />
-            <Rij label="Adres" waarde={[school.adres, school.postcode, school.plaats].filter(Boolean).join(', ') || null} />
-            <Rij label="Rechtsvorm" waarde={school.rechtsvorm} />
-            <Rij label="KVK" waarde={school.kvk} />
-            <Rij label="Btw" waarde={school.btw} />
-            <Rij label="IBAN ingevuld" waarde={school.iban_ingevuld ? 'ja' : 'nee'} />
-            <Rij label="Logo" waarde={school.logo ? 'ja' : 'nee'} />
-            <Rij label="Website" waarde={school.website} />
-            <Rij label="Aanmeldlink" waarde={school.registratie_slug} />
-            <Rij label="Aanmelden open" waarde={school.registratie_open ? 'ja' : 'nee'} />
-            <Rij label="Welkomstmail" waarde={school.welkomstmail ? moment(school.welkomstmail) : 'niet verstuurd'} />
-            <Rij label="Plango-import" waarde={school.plango_import ? moment(school.plango_import) : 'nee'} />
-            <Rij label="Setupwizard" waarde={
-              school.wizard === 'completed' ? `afgerond · ${moment(school.wizard_afgesloten)}`
-              : school.wizard === 'skipped' ? `overgeslagen · ${moment(school.wizard_afgesloten)}`
-              : 'nog niet doorlopen'} />
-          </dl>
-        </section>
-
-        <section className={styles.card} id="account" hidden={section !== 'account'}>
-          <h2 className={styles.sectionTitle}>Instructeurs</h2>
-          <p className={styles.voetnoot}>
-            Namen en e-mailadressen horen bij niveau 1 en staan hier bewust niet.
-          </p>
-          <div style={s.tabelWrap}><table style={s.tabel}>
-            <thead>
-              <tr><th style={s.th}>Rol</th><th style={s.th}>Status</th>
-                <th style={s.th}>Bevestigd</th><th style={s.th}>Laatst actief</th></tr>
-            </thead>
-            <tbody>
-              {detail.instructeurs.map((i, n) => (
-                <tr key={n}>
-                  <td style={s.td}>{i.rol ?? '—'}</td>
-                  <td style={s.td}>{i.status ?? '—'}</td>
-                  <td style={s.td}>{i.account_bevestigd ? 'ja' : 'nee'}</td>
-                  <td style={s.td}>{moment(i.laatste_activiteit)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
-
-          <h2 className={styles.subsectionTitle}>Juridisch</h2>
-          <dl className={styles.lijst}>
-            {detail.juridisch.map((j) => (
-              <Rij key={j.document} label={j.document} waarde={`${j.versie} · ${datum(j.wanneer)}`} />
-            ))}
-            {detail.juridisch.length === 0 && <Rij label="—" waarde="niets geaccepteerd" />}
-          </dl>
-
-          {detail.cbr && (
-            <>
-              <h2 className={styles.subsectionTitle}>CBR-synchronisatie</h2>
-              {detail.cbr.koppeling === 'uit' && (
-                <div style={s.signaalRood}>
-                  Koppeling staat <strong>uit</strong> sinds {moment(detail.cbr.gewijzigd)}.
-                  {detail.cbr.laatste_fout && <> Laatste fout: {detail.cbr.laatste_fout}</>}
-                  {' '}De rijschool moet hem zelf weer aanzetten via Koppelingen.
-                </div>
+      {section === 'overzicht' && <>
+        <Kpis>{[['leerlingen', 'Leerlingen'], ['lessen', 'Lesrecords'], ['pakketten', 'Pakketten'], ['facturen', 'Factuurrecords']].map(([key, label]) =>
+          <Kpi key={key} label={label} value={detail.aantallen?.[key]?.toLocaleString('nl-NL') ?? '—'} note="Huidige stand · geen periodemeting" />)}</Kpis>
+        <Grid>
+          <Panel id="aan-de-slag" title="Aan de slag" note={gestopt ? `Volgende stap: ${gestopt.label}` : 'Alle huidige instelstappen zijn voltooid.'}
+            actions={<Pill tone={gestopt ? 'warn' : 'ok'}>{gereed} van {onboarding.length} stappen</Pill>}>
+            <details className={styles.stappen}><summary>Alle instelstappen bekijken</summary>
+              <Rows>{onboarding.map(stap => <Row key={stap.sleutel} title={stap.label}
+                meta={stap.wanneer ? moment(stap.wanneer) : (stap.gereed ? 'gedaan' : '—')}
+                end={<Pill tone={stap.gereed ? 'ok' : stap.blokkerend ? 'warn' : 'neutral'}>{stap.gereed ? 'Gedaan' : stap.blokkerend ? 'Blokkeert' : 'Open'}</Pill>} />)}</Rows>
+            </details>
+          </Panel>
+          <Panel id="abonnement" title="Abonnement" note="Betaald loopt via Stripe; de proefperiode wordt op dit moment nog door Ribba zelf gezet. Twee bronnen, dus apart getoond.">
+            <dl className={kit.pairs}>
+              <Rij label="Ribba-licentie" waarde={licentie ? planLabel(licentie.plan) : 'geen licentie'} />
+              <Rij label="Proefabonnement" waarde={
+                !licentie?.is_proef ? 'nee'
+                : licentie.proef_verlopen ? `verlopen op ${datum(licentie.proef_tot)}`
+                : `tot ${datum(licentie.proef_tot)} · nog ${dagen(licentie.proef_dagen_resterend ?? 0)}`
+              } />
+              {licentie && !licentie.is_proef && licentie.proef_tot && (
+                // Historie: deze rijschool ís via een proef binnengekomen.
+                <Rij label="Eerdere proef liep tot" waarde={datum(licentie.proef_tot)} />
               )}
-              <dl className={styles.lijst}>
-                <Rij label="Koppeling" waarde={detail.cbr.koppeling} />
-                <Rij label="Laatste poging" waarde={moment(detail.cbr.laatste)} />
-                <Rij label="Laatst geslaagd" waarde={moment(detail.cbr.laatste_geslaagd)} />
-                <Rij label="Afgelopen 7 dagen"
-                  waarde={`${detail.cbr.mislukt_7d} van ${detail.cbr.runs_7d} mislukt`} />
-              </dl>
-            </>
-          )}
-        </section>
-      </div>
-
-      <section className={styles.activity} id="activiteit" hidden={section !== 'activiteit'}>
-        <h2 className={styles.sectionTitle}>Gebeurtenissen</h2>
-        <p className={styles.voetnoot}>
-          Facturatie, webhooks, CBR en SnelStart. Van de CBR-synchronisatie
-          alleen de momenten waarop hij omsloeg — die draait elk uur. Een fout krijgt
-          het label Hersteld zodra een latere geslaagde run van hetzelfde type is vastgelegd.
-        </p>
-        <div style={s.tabelWrap}>
-          <table style={s.tabel}>
-            <thead>
-              <tr><th style={s.th}>Wanneer</th><th style={s.th}>Bron</th>
-                <th style={s.th}>Soort</th><th style={s.th}>Details</th></tr>
-            </thead>
-            <tbody>
-              {withCbrRecovery(events).map((e, n) => (
-                <tr key={n} style={e.ok || e.hersteldOp ? undefined : s.rijFout}>
-                  <td style={s.td}>{moment(e.wanneer)}</td>
-                  <td style={s.td}>{e.bron}</td>
-                  <td style={s.td}>
-                    {!e.ok && <span style={e.hersteldOp ? s.hersteldBadge : s.foutBadge}>
-                      {e.hersteldOp ? 'Hersteld' : 'Fout'}
-                    </span>}
-                    {e.soort}
-                  </td>
-                  <td style={s.tdDetail}>
-                    {e.detail ?? '—'}
-                    {e.hersteldOp && <div style={s.herstelMoment}>Hersteld op {moment(e.hersteldOp)}</div>}
-                  </td>
-                </tr>
-              ))}
-              {events.length === 0 && (
-                <tr><td style={s.td} colSpan={4}>Geen gebeurtenissen vastgelegd.</td></tr>
+              <Rij label="Licentie gestart" waarde={licentie ? datum(licentie.gestart) : null} />
+              {licentie?.opgezegd && <Rij label="Licentie opgezegd" waarde={moment(licentie.opgezegd)} />}
+              {licentie?.loopt_tot && <Rij label="Licentie loopt tot" waarde={datum(licentie.loopt_tot)} />}
+              <Rij label="Stripe-abonnement" waarde={detail.abonnement
+                ? `${detail.abonnement.status}${detail.abonnement.plan ? ` · ${detail.abonnement.plan}` : ''}`
+                : 'geen'} />
+              {detail.abonnement && (
+                <>
+                  <Rij label="Stripe gestart" waarde={datum(detail.abonnement.gestart)} />
+                  <Rij label="Periode loopt tot" waarde={datum(detail.abonnement.loopt_tot)} />
+                </>
               )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      </main>
-    </div>
+            </dl>
+          </Panel>
+        </Grid>
+      </>}
+
+      {section === 'gegevens' && <Panel id="schoolgegevens" title="Schoolgegevens" actions={<Link href={`/support/${id}/bewerken`}>Bewerken ↗</Link>}>
+        <dl className={kit.pairs}>
+          <Rij label="E-mail" waarde={school.email} />
+          <Rij label="Telefoon" waarde={school.telefoon} />
+          <Rij label="Adres" waarde={[school.adres, school.postcode, school.plaats].filter(Boolean).join(', ') || null} />
+          <Rij label="Rechtsvorm" waarde={school.rechtsvorm} />
+          <Rij label="KVK" waarde={school.kvk} />
+          <Rij label="Btw" waarde={school.btw} />
+          <Rij label="IBAN ingevuld" waarde={school.iban_ingevuld ? 'ja' : 'nee'} />
+          <Rij label="Logo" waarde={school.logo ? 'ja' : 'nee'} />
+          <Rij label="Website" waarde={school.website} />
+          <Rij label="Aanmeldlink" waarde={school.registratie_slug} />
+          <Rij label="Aanmelden open" waarde={school.registratie_open ? 'ja' : 'nee'} />
+          <Rij label="Welkomstmail" waarde={school.welkomstmail ? moment(school.welkomstmail) : 'niet verstuurd'} />
+          <Rij label="Plango-import" waarde={school.plango_import ? moment(school.plango_import) : 'nee'} />
+          <Rij label="Setupwizard" waarde={
+            school.wizard === 'completed' ? `afgerond · ${moment(school.wizard_afgesloten)}`
+            : school.wizard === 'skipped' ? `overgeslagen · ${moment(school.wizard_afgesloten)}`
+            : 'nog niet doorlopen'} />
+        </dl>
+      </Panel>}
+
+      {section === 'account' && <Panel id="instructeurs" title="Instructeurs" note="Namen en e-mailadressen horen bij niveau 1 en staan hier bewust niet.">
+        {detail.instructeurs.length === 0 ? <Empty>Geen instructeurs gekoppeld.</Empty> : <div className={kit.tableWrap}><table className={kit.table}>
+          <thead><tr><th scope="col">Rol</th><th scope="col">Status</th><th scope="col">Bevestigd</th><th scope="col">Laatst actief</th></tr></thead>
+          <tbody>{detail.instructeurs.map((i, n) => <tr key={n}><td>{i.rol ?? '—'}</td><td>{i.status ?? '—'}</td><td>{i.account_bevestigd ? 'ja' : 'nee'}</td><td>{moment(i.laatste_activiteit)}</td></tr>)}</tbody>
+        </table></div>}
+
+        <h3 className={kit.subhead}>Juridisch</h3>
+        <dl className={kit.pairs}>
+          {detail.juridisch.map((j) => <Rij key={j.document} label={j.document} waarde={`${j.versie} · ${datum(j.wanneer)}`} />)}
+          {detail.juridisch.length === 0 && <Rij label="—" waarde="niets geaccepteerd" />}
+        </dl>
+
+        {detail.cbr && <>
+          <h3 className={kit.subhead}>CBR-synchronisatie</h3>
+          {detail.cbr.koppeling === 'uit' && <Banner tone="bad"><span>Koppeling staat <strong>uit</strong> sinds {moment(detail.cbr.gewijzigd)}.{detail.cbr.laatste_fout && <> Laatste fout: {detail.cbr.laatste_fout}</>} De rijschool moet hem zelf weer aanzetten via Koppelingen.</span></Banner>}
+          <dl className={kit.pairs}>
+            <Rij label="Koppeling" waarde={detail.cbr.koppeling} />
+            <Rij label="Laatste poging" waarde={moment(detail.cbr.laatste)} />
+            <Rij label="Laatst geslaagd" waarde={moment(detail.cbr.laatste_geslaagd)} />
+            <Rij label="Afgelopen 7 dagen" waarde={`${detail.cbr.mislukt_7d} van ${detail.cbr.runs_7d} mislukt`} />
+          </dl>
+        </>}
+      </Panel>}
+
+      {section === 'activiteit' && <Panel id="gebeurtenissen" title="Gebeurtenissen" note="Facturatie, webhooks, CBR en SnelStart. Van de CBR-synchronisatie alleen de momenten waarop hij omsloeg — die draait elk uur. Een fout krijgt het label Hersteld zodra een latere geslaagde run van hetzelfde type is vastgelegd.">
+        {events.length === 0 ? <Empty>Geen gebeurtenissen vastgelegd.</Empty> : <div className={kit.tableWrap}><table className={kit.table}>
+          <thead><tr><th scope="col">Wanneer</th><th scope="col">Bron</th><th scope="col">Soort</th><th scope="col">Details</th></tr></thead>
+          <tbody>{withCbrRecovery(events).map((e, n) => <tr key={n} className={e.ok || e.hersteldOp ? undefined : styles.fout}>
+            <td className={styles.nowrap}>{moment(e.wanneer)}</td>
+            <td className={styles.nowrap}>{e.bron}</td>
+            <td className={styles.nowrap}>{!e.ok && <><Pill tone={e.hersteldOp ? 'ok' : 'bad'}>{e.hersteldOp ? 'Hersteld' : 'Fout'}</Pill>{' '}</>}{e.soort}</td>
+            <td className={styles.detail}>{e.detail ?? '—'}{e.hersteldOp && <div className={kit.text_ok}>Hersteld op {moment(e.hersteldOp)}</div>}</td>
+          </tr>)}</tbody>
+        </table></div>}
+      </Panel>}
+      <Note>Je bekijkt schoolgegevens en aantallen, geen leerlinggegevens. Je bezoeken worden vastgelegd in het supportlogboek.</Note>
+    </Page>
   );
 }
 
 function Rij({ label, waarde }: { label: string; waarde: string | null }) {
-  return (
-    <>
-      <dt style={s.dt}>{label}</dt>
-      <dd style={s.dd}>{waarde ?? '—'}</dd>
-    </>
-  );
+  return <><dt>{label}</dt><dd>{waarde ?? '—'}</dd></>;
 }
-
-const s: Record<string, React.CSSProperties> = {
-  terug: { fontSize: 13, color: 'var(--support-blue)', textDecoration: 'none' },
-  voetnoot: { fontSize: 12, color: 'var(--support-muted)', margin: '-6px 0 12px' },
-  signaal: {
-    background: 'var(--support-warning-bg)', color: 'var(--support-warning)', padding: '10px 14px',
-    borderRadius: 10, fontSize: 14, marginBottom: 20,
-  },
-  grid: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20,
-  },
-  stappen: { listStyle: 'none', padding: 0, margin: 0 },
-  stap: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' },
-  bolOk: { width: 9, height: 9, borderRadius: 999, background: '#16A34A', flexShrink: 0 },
-  bolLeeg: { width: 9, height: 9, borderRadius: 999, background: '#CBD5E1', flexShrink: 0 },
-  bolBlok: { width: 9, height: 9, borderRadius: 999, background: '#D97706', flexShrink: 0 },
-  stapLabel: { fontSize: 14, color: 'var(--support-text)', flex: 1 },
-  stapLabelOpen: { fontSize: 14, color: 'var(--support-muted)', flex: 1 },
-  stapDatum: { fontSize: 12, color: 'var(--support-muted)', whiteSpace: 'nowrap' },
-  lijst: { display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', margin: 0, fontSize: 13 },
-  dt: { color: 'var(--support-muted)' },
-  dd: { color: 'var(--support-text)', margin: 0, wordBreak: 'break-word' },
-  tabelWrap: { overflowX: 'auto' },
-  tabel: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th: {
-    textAlign: 'left', padding: '13px 12px', fontSize: 11, fontWeight: 600, color: 'var(--support-muted)',
-    textTransform: 'uppercase', letterSpacing: 0.4, borderBottom: '1px solid var(--support-line)', whiteSpace: 'nowrap',
-  },
-  td: { padding: '13px 12px', borderBottom: '1px solid var(--support-line)', color: 'var(--support-text)', whiteSpace: 'nowrap' },
-  tdDetail: { padding: '13px 12px', borderBottom: '1px solid var(--support-line)', color: 'var(--support-muted)' },
-  rijFout: { background: 'var(--support-error-bg)' },
-  signaalRood: {
-    background: 'var(--support-error-bg)', color: 'var(--support-error)', padding: '10px 12px',
-    borderRadius: 10, fontSize: 13, marginBottom: 12,
-  },
-  // Een proef die nog ruim loopt is informatie, geen waarschuwing. Pas onder de
-  // week kleurt hij amber (s.signaal) en na afloop rood.
-  signaalInfo: {
-    background: 'var(--support-input)', color: 'var(--support-link)', padding: '10px 14px',
-    borderRadius: 10, fontSize: 14, marginBottom: 20,
-  },
-  herstelMoment: { color: 'var(--support-ok)', fontSize: 13, marginTop: 4 },
-  hersteldBadge: {
-    background: 'var(--support-ok-bg)', color: 'var(--support-ok)', padding: '1px 7px', borderRadius: 999,
-    fontSize: 11, fontWeight: 600, marginRight: 8,
-  },
-  foutBadge: {
-    background: 'var(--support-error-bg)', color: 'var(--support-error)', padding: '1px 7px', borderRadius: 999,
-    fontSize: 11, fontWeight: 600, marginRight: 8,
-  },
-  intern: {
-    background: 'var(--support-input)', color: 'var(--support-link)', padding: '2px 9px',
-    borderRadius: 999, fontSize: 11, fontWeight: 600,
-  },
-};

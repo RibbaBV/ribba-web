@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSupportToken } from '../client';
 import type { SupportEvent } from '@/lib/support-event-recovery';
 import SchoolDetailView, { type Detail } from './school-detail-view';
-import styles from './detail-design.module.css';
+import { Page, StateMessage, kit } from '../ui/kit';
 
 export default function SchoolDetailPagina({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -50,19 +50,19 @@ export default function SchoolDetailPagina({ params }: { params: Promise<{ id: s
 
   if (status === 'geen-toegang' || geweigerd) {
     return (
-      <div className={styles.loading}>
-        <p className={styles.voetnoot}>Je sessie is verlopen of mist de tweede factor.</p>
-        <Link href="/support" className={styles.back}>Opnieuw inloggen</Link>
-      </div>
+      <Page><div className={kit.state}>
+        <p>Je sessie is verlopen of mist de tweede factor.</p>
+        <Link href="/support" className={kit.button}>Opnieuw inloggen</Link>
+      </div></Page>
     );
   }
 
   if (!detail) {
     return (
-      <div className={styles.loading}>
-        <Link href="/support" className={styles.back}>← Alle rijscholen</Link>
-        <p className={styles.voetnoot}>{fout || 'Laden…'}</p>
-      </div>
+      <Page>
+        <p className={kit.note} style={{ margin: '0 0 18px' }}><Link href="/support">← Alle rijscholen</Link></p>
+        {fout ? <StateMessage error={fout} /> : <StateMessage>Laden…</StateMessage>}
+      </Page>
     );
   }
 

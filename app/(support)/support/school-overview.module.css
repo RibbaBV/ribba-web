@@ -1,0 +1,26 @@
+/* Rijscholen-lijst: alleen wat de huisstijl (./ui/kit.module.css) niet heeft. */
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.search{display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--support-input);border:1px solid var(--support-line);border-radius:10px;width:360px;max-width:100%;min-height:44px}
+.search:focus-within{border-color:var(--support-blue)}
+.search svg{width:18px;height:18px;fill:none;stroke:var(--support-muted);stroke-width:1.6;flex-shrink:0}
+.search input{border:0;background:transparent;padding:10px 0;width:100%;min-width:0;color:var(--support-text);font:inherit;font-size:14px;outline:0}
+.srOnly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.list{list-style:none;margin:0;padding:0}
+.school{border-top:1px solid var(--support-line);padding:16px 0 0}
+.main{display:grid;grid-template-columns:minmax(0,2.2fr) .7fr 1fr 1fr;align-items:center;gap:20px}
+.identity{display:flex;gap:14px;align-items:center;min-width:0}
+.identity>div{min-width:0}
+.identity p{margin:4px 0 0;font-size:12px;color:var(--support-muted);display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.avatar{width:42px;height:42px;border:1px solid var(--support-line);background:var(--support-input);color:#9dcaff;border-radius:13px;display:grid;place-items:center;font-size:17px;font-weight:600;flex-shrink:0}
+.name{font-weight:600;text-decoration:none;color:var(--support-text)!important;overflow-wrap:anywhere}
+.name:hover{color:var(--support-link)!important}
+.name span{color:var(--support-muted);font-size:13px}
+.metric{display:flex;flex-direction:column;gap:4px}
+.metric span{font-size:11px;color:var(--support-muted)}
+.metric strong{font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+.status{display:flex;align-items:flex-end;flex-direction:column;gap:6px}
+.status small{color:var(--support-muted);font-size:11px;text-align:right}
+.extra{margin:10px 0 0 56px;font-size:12px}
+.extra summary{cursor:pointer;color:var(--support-muted);padding:0 0 14px;width:fit-content;min-height:32px}
+.extra dl{padding:2px 0 16px}
+@media(max-width:760px){.main{grid-template-columns:minmax(0,1fr) auto;gap:12px}.identity{grid-column:1/-1}.metric:nth-child(2){display:none}.metric:nth-child(3){padding-left:56px}.extra{margin-left:0}.search{width:100%}}
