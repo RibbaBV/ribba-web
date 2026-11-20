@@ -36,8 +36,8 @@ export function platformUitUserAgent(ua: string | null | undefined): Platform {
 }
 
 /** De deeplink die de app opent als hij geïnstalleerd is (custom scheme). */
-export function appDeelLink(code: string): string {
-  return `ribba://s/${code}`;
+export function appDeelLink(code: string, samen = false): string {
+  return `ribba://s/${code}${samen ? '?samen=1' : ''}`;
 }
 
 export type OpeningResultaat = 'geteld' | 'bot' | 'onbekende_code' | 'fout';

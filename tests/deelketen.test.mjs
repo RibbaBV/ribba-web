@@ -26,6 +26,7 @@ test('bots en linkpreviews tellen niet; een lege user-agent ook niet',()=>{
 });
 test('de app-link gebruikt het eigen schema en het pad s/CODE',()=>{
  assert.equal(appDeelLink('K7M2PQ'),'ribba://s/K7M2PQ');
+ assert.equal(appDeelLink('K7M2PQ',true),'ribba://s/K7M2PQ?samen=1');
 });
 function nepDb(bestaat,{faalt=false}={}){
  const geteld=[];
