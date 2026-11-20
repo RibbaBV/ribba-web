@@ -18,11 +18,14 @@ type InviteProps = {
 };
 export async function generateMetadata({ searchParams }: InviteProps): Promise<Metadata> {
   const samen = (await searchParams).samen === '1';
-  const title = samen ? 'Leer samen theorie op Ribba' : 'Een vriend nodigt je uit voor Ribba';
+  const title = samen ? 'Zullen we samen gratis theorie leren op Ribba?' : 'Een vriend nodigt je uit voor Ribba';
   const description = samen
-    ? 'Word studiemaatjes, oefen dagelijks en vergelijk jullie punten in je vriendenklassement.'
+    ? 'Voeg me toe als studiemaatje. Oefen gratis met theoriekaarten, volg mijn voortgang en vergelijk onze punten.'
     : 'Oefen gratis voor je theorie-examen in de Ribba-app.';
-  return { title, description, openGraph: { title, description }, robots: { index: false, follow: false } };
+  const image = { url: 'https://link.ribba.app/studiemaatjes-uitnodiging.jpg', width: 1200, height: 630,
+    alt: 'Twee studiemaatjes oefenen verkeersborden. Zullen we samen gratis theorie leren?' };
+  return { title, description, openGraph: { title, description, ...(samen && { images: [image] }) },
+    ...(samen && { twitter: { card: 'summary_large_image' as const, title, description, images: [image.url] } }), robots: { index: false, follow: false } };
 }
 
 export default async function DeelLinkPagina({ params, searchParams }: InviteProps) {
@@ -41,7 +44,7 @@ export default async function DeelLinkPagina({ params, searchParams }: InvitePro
         <h1>{samen ? 'Zullen we samen theorie leren?' : 'Een vriend nodigt je uit voor Ribba'}</h1>
         <p className="subtitle">
           {samen
-            ? 'Voeg elkaar toe als studiemaatjes. Oefen met dagelijkse kaarten en bekijk wie deze week de meeste oefenpunten heeft.'
+            ? 'Word gratis studiemaatjes op Ribba. Oefen met dagelijkse theoriekaarten en volg elkaars voortgang.'
             : 'Oefen gratis voor je theorie-examen in de Ribba-app. Download de app en maak een account aan.'}
         </p>
         {samen ? (
