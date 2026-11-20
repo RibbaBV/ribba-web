@@ -12,14 +12,23 @@ import { AppStoreBadge, GooglePlayBadge } from '@/app/components/StoreBadges';
 import { appDeelLink, deelketenDb, normaliseerDeelcode, registreerLinkOpening } from '@/lib/deelketen';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = {
-  title: 'Een vriend nodigt je uit voor Ribba',
-  robots: { index: false, follow: false },
+type InviteProps = {
+  params: Promise<{ code: string }>;
+  searchParams: Promise<{ samen?: string | string[] }>;
 };
+export async function generateMetadata({ searchParams }: InviteProps): Promise<Metadata> {
+  const samen = (await searchParams).samen === '1';
+  const title = samen ? 'Leer samen theorie op Ribba' : 'Een vriend nodigt je uit voor Ribba';
+  const description = samen
+    ? 'Word studiemaatjes, oefen dagelijks en vergelijk jullie punten in je vriendenklassement.'
+    : 'Oefen gratis voor je theorie-examen in de Ribba-app.';
+  return { title, description, openGraph: { title, description }, robots: { index: false, follow: false } };
+}
 
-export default async function DeelLinkPagina({ params }: { params: Promise<{ code: string }> }) {
+export default async function DeelLinkPagina({ params, searchParams }: InviteProps) {
   const { code: ruw } = await params;
-  const code = normaliseerDeelcode(decodeURIComponent(ruw ?? ''));
+  const samen = (await searchParams).samen === '1';
+  const code = normaliseerDeelcode(ruw);
   const ua = (await headers()).get('user-agent');
   const resultaat = code ? await registreerLinkOpening(code, ua, deelketenDb()) : 'onbekende_code';
 
@@ -29,9 +38,11 @@ export default async function DeelLinkPagina({ params }: { params: Promise<{ cod
     <div className="registration-page">
       <div className="registration-card" style={{ textAlign: 'center' }}>
         <RibbaLogo />
-        <h1>Een vriend nodigt je uit voor Ribba</h1>
+        <h1>{samen ? 'Zullen we samen theorie leren?' : 'Een vriend nodigt je uit voor Ribba'}</h1>
         <p className="subtitle">
-          Oefen gratis voor je theorie-examen in de Ribba-app. Download de app en maak een account aan.
+          {samen
+            ? 'Voeg elkaar toe als studiemaatjes. Oefen met dagelijkse kaarten en bekijk wie deze week de meeste oefenpunten heeft.'
+            : 'Oefen gratis voor je theorie-examen in de Ribba-app. Download de app en maak een account aan.'}
         </p>
         <p className="subtitle" style={{ marginTop: 24, marginBottom: 6, fontSize: 13 }}>Code van je vriend</p>
         <p
@@ -40,13 +51,15 @@ export default async function DeelLinkPagina({ params }: { params: Promise<{ cod
         >
           {code}
         </p>
-        <p className="subtitle">Vul deze code in bij het aanmaken van je account in de app.</p>
+        <p className="subtitle">{samen
+          ? 'Open deze link opnieuw na het installeren. Je kunt de code ook invullen bij Leren → Samen theorie leren. Zodra je vriend je verzoek accepteert, zien jullie elkaar in het klassement.'
+          : 'Vul deze code in bij het aanmaken van je account in de app.'}</p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24, flexWrap: 'wrap' }}>
           <AppStoreBadge />
           <GooglePlayBadge />
         </div>
         <p className="subtitle" style={{ marginTop: 24, fontSize: 13 }}>
-          Heb je de app al? <a href={appDeelLink(code)}>Open in de app</a>
+          Heb je de app al? <a href={appDeelLink(code, samen)}>Open in de app</a>
         </p>
       </div>
     </div>
