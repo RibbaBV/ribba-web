@@ -12,6 +12,7 @@
           { "/": "/upgrade/success" },
           { "/": "/payment/success" },
           { "/": "/join/*" },
+          { "/": "/inloggen-per-mail/app" },
           { "/": "/reset" },
           { "/": "/reset/*" },
           { "/": "/i/*", "comment": "marketplace inquiry deep-link, leerling-kant (ribbaPro#139)" },
