@@ -5,6 +5,7 @@
 // dat de code bij het aanmaken van het account hoort. Elke echte opening
 // wordt geteld (zie lib/deelketen.ts); een onbekende code toont een neutrale
 // pagina en telt niets.
+import OpenStudyInvite from './OpenStudyInvite';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import RibbaLogo from '@/app/components/RibbaLogo';
@@ -48,7 +49,7 @@ export default async function DeelLinkPagina({ params, searchParams }: InvitePro
             : 'Oefen gratis voor je theorie-examen in de Ribba-app. Download de app en maak een account aan.'}
         </p>
         {samen ? (
-          <p className="subtitle">Open deze link na het installeren opnieuw om je vriend een verzoek te sturen.</p>
+          <p className="subtitle">Open deze link na het installeren opnieuw om de uitnodiging van je studiemaatje te accepteren.</p>
         ) : (
           <>
             <p className="subtitle" style={{ marginTop: 24, marginBottom: 6, fontSize: 13 }}>Code van je vriend</p>
@@ -66,7 +67,7 @@ export default async function DeelLinkPagina({ params, searchParams }: InvitePro
           <GooglePlayBadge />
         </div>
         <p className="subtitle" style={{ marginTop: 24, fontSize: 13 }}>
-          Heb je de app al? <a href={appDeelLink(code, samen)}>Open in de app</a>
+          Heb je de app al? {samen ? <OpenStudyInvite href={appDeelLink(code, true)} /> : <a href={appDeelLink(code)}>Open in de app</a>}
         </p>
       </div>
     </div>
