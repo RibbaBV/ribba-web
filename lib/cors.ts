@@ -1,7 +1,8 @@
-// CORS voor endpoints die door de statische vergelijkingssite (ribba.app,
-// GitHub Pages) cross-origin aangeroepen worden.
+// De vergelijkingssite verstuurt aanvragen naar chat.ribba.app.
 
 const ALLOWED_ORIGINS = new Set([
+  'https://ribba.nl',
+  'https://www.ribba.nl',
   'https://ribba.app',
   'https://www.ribba.app',
 ]);
@@ -14,7 +15,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 export function corsHeaders(origin: string | null): Record<string, string> {
   if (!origin || !ALLOWED_ORIGINS.has(origin)) {
-    return {};
+    return { Vary: 'Origin' };
   }
   return {
     'Access-Control-Allow-Origin': origin,
