@@ -5,6 +5,7 @@ import {Banner,Button,Empty,Explainer,Footer,Grid,Kpi,Kpis,Note,Panel,Pill,Rows,
 import {defaultSelection,kindLabels,cohortLabels,presenceLabels,usageDate,usageIsStale,type UsageSummary,type UsageUsers,type UserSelection} from '@/lib/support-usage';
 import k from '../../ui/kit.module.css';
 import s from './gebruikers.module.css';
+import DailyCharts from './daily-charts';
 type Result<T>={data?:T;error?:string};
 type Request={filter:UserSelection;page:number};
 export default function Overview({token,isCurrentToken}:{token:string;isCurrentToken:(token:string)=>boolean}){
@@ -47,9 +48,6 @@ export default function Overview({token,isCurrentToken}:{token:string;isCurrentT
   const filter={...defaultSelection,...patch};setSelection(filter);setList(null);setRequest({filter,page:0});
   document.getElementById('people')?.scrollIntoView({behavior:'smooth',block:'start'});
  }
- const today=data?.days[0];
- const active=today?.measured?(today.active_with_school+today.active_without_school):null;
- const max=Math.max(1,...(data?.days??[]).map(d=>d.active_with_school+d.active_without_school));
  return <>
  <div className={s.tools}><Segmented label="Periode" options={[7,30,90] as const} value={days} onChange={setDays} format={v=>`${v} dagen`}/><Button onClick={()=>setRefresh(n=>n+1)}>Vernieuwen</Button></div>
  {!data?<StateMessage error={summary.error} onRetry={()=>setRefresh(n=>n+1)}>Gebruikersoverzicht laden…</StateMessage>:<>
@@ -59,11 +57,6 @@ export default function Overview({token,isCurrentToken}:{token:string;isCurrentT
  <Kpi label="Zonder actieve rijschool" value={data.totals.without_school} note={<Button onClick={()=>open({cohort:'without_school'})}>Bekijken</Button>}/>
  <Kpi label={stale?'Eerder online gemeten':'Nu online · alle rollen'} value={stale?'—':data.totals.online} tone={stale?'warn':'ok'} note={<Button disabled={stale} onClick={()=>open({kind:'all',presence:'online'})}>Wie zijn online?</Button>}/></Kpis>
  <Note>Zonder actieve rijschool: {data.totals.no_link} zonder koppeling · {data.totals.waitlist} op de wachtlijst · {data.totals.other_school_states} geslaagd, gestopt of geschorst. {data.totals.unknown} gebruikers hebben nog geen aanwezigheidsmeting.</Note>
- <Kpis columns={3}>
- <Kpi label="Nieuwe leerlingen · vandaag" value={today?today.new_with_school+today.new_without_school+today.new_unknown:'—'} note={<Button onClick={()=>open({metric:'new',day:today?.day??'',cohort:'all'})}>Nieuwe leerlingen bekijken</Button>}/>
- <Kpi label="Nieuwe leerlingen zonder rijschool · vandaag" value={today?.new_without_school??'—'} note={<Button onClick={()=>open({metric:'new',day:today?.day??'',cohort:'without_school'})}>Wie zijn erbij gekomen?</Button>}/>
- <Kpi label="Actieve leerlingen · vandaag" value={active??'—'} note={active===null?'Aanwezigheidsmeting nog niet gestart':`${today!.active_with_school} met · ${today!.active_without_school} zonder actieve rijschool`}/>
- </Kpis>
  <Grid><Panel id="online" title="Nu in Ribba" note={stale?'Laatste meting; momenteel niet actueel.':'Unieke gebruikers, ook als iemand meerdere appsessies heeft.'}>
  <Rows>{data.online_by_kind.map(row=><Row key={`${row.kind}-${row.cohort}`} title={kindLabels[row.kind]} sub={row.kind==='learner'?cohortLabels[row.cohort]:undefined} end={<Button disabled={stale} onClick={()=>open({kind:row.kind,cohort:row.kind==='learner'?row.cohort:'all',presence:'online'})}>{row.users} bekijken</Button>}/>)}</Rows>
  {!data.online_by_kind.length&&<Empty>{stale?'Geen actuele meting beschikbaar.':'Niemand online gemeten.'}</Empty>}
@@ -72,14 +65,15 @@ export default function Overview({token,isCurrentToken}:{token:string;isCurrentT
  <details><summary>Appversies per rol en toestel bekijken</summary><Rows>{data.versions.map((v,i)=><Row key={i} title={`${v.app_version??'Onbekende appversie'} · ${v.platform??'platform onbekend'}`} sub={`${kindLabels[v.kind]} · OTA ${v.ota_id??'onbekend'}`} meta={`${v.users} gebruikers`}/>)}</Rows>
  {!data.versions.length&&<Empty>Nog geen gebruikers beschikbaar.</Empty>}</details>
  </Panel></Grid>
- <Panel id="daily" title="Dagelijks nieuwe en actieve gebruikers" note="Nederlandse kalenderdagen. Klik op een aantal om de bijbehorende personen te zien; het overzicht zelf bevat geen namen.">
- <div className={s.chart} role="img" aria-label="Dagelijks actieve leerlingen; exacte aantallen in de tabel">{[...data.days].reverse().map(d=><div key={d.day} title={`${d.day}: ${d.measured?d.active_with_school+d.active_without_school:'nog niet gemeten'}`} style={{height:`${d.measured?Math.max(2,(d.active_with_school+d.active_without_school)/max*100):2}%`}}/>)}</div>
+ <Panel id="daily" title="Groei en dagelijks gebruik" note="Bekijk de ontwikkeling en kies een dag voor de bijbehorende personen.">
+ <DailyCharts days={data.days} onOpen={open}/>
+ <details className={s.dayDetails}><summary>Bekijk dagcijfers</summary>
  <div className={s.scroll}><table className={s.table}><caption>Leerlingen: nieuw bij registratie en actief bij eerste dagmeting</caption><thead><tr><th scope="col">Dag</th><th scope="col">Nieuw met school</th><th scope="col">Nieuw zonder school</th><th scope="col">Nieuw · indeling onbekend</th><th scope="col">Actief met school</th><th scope="col">Actief zonder school</th><th scope="col">Nieuwe rijschoolgebruikers</th><th scope="col">Actieve rijschoolgebruikers</th></tr></thead><tbody>{data.days.map(d=><tr key={d.day}><th scope="row">{d.day}</th>
  {(['new_with_school','new_without_school','new_unknown','active_with_school','active_without_school','new_school_users','active_school_users'] as const).map((field,i)=>{
  const metric=field.startsWith('new')?'new':'active';const kind=field.endsWith('school_users')?'school':'learner';
  const cohort=field==='new_unknown'?'unknown':field.includes('without_school')?'without_school':field.endsWith('school_users')?'all':'with_school';
  return <td key={field}>{metric==='active'&&!d.measured?<span title="Meting nog niet gestart">—</span>:<Button aria-label={`${d.day}: ${d[field]} ${['nieuwe leerlingen met school','nieuwe leerlingen zonder school','nieuwe leerlingen met onbekende schoolindeling','actieve leerlingen met school','actieve leerlingen zonder school','nieuwe rijschoolgebruikers','actieve rijschoolgebruikers'][i]} bekijken`} onClick={()=>open({day:d.day,metric,kind,cohort})}>{d[field]}</Button>}</td>;
- })}</tr>)}</tbody></table></div>
+ })}</tr>)}</tbody></table></div></details>
  <Note>Schoolindeling bij nieuwe leerlingen wordt vastgelegd bij eerste herkenning als leerling. Bij actief gebruik geldt de eerste meting van die dag. Historische indelingen worden niet achteraf ingevuld. De eerste meetdag is gedeeltelijk; ook oudere appversies kunnen ontbreken in de actieve cijfers.</Note>
  </Panel>
  <Panel id="schools" title="Per rijschool" note="Actief gekoppelde leerlingen, uniek binnen iedere school. Een leerling bij twee scholen telt in het totaal één keer.">
