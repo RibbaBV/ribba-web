@@ -5,12 +5,15 @@ import {Banner,Button,Empty,Explainer,Footer,Grid,Kpi,Kpis,Note,Panel,Pill,Rows,
 import {defaultSelection,kindLabels,cohortLabels,presenceLabels,usageDate,usageIsStale,type UsageSummary,type UsageUsers,type UserSelection} from '@/lib/support-usage';
 import k from '../../ui/kit.module.css';
 import s from './gebruikers.module.css';
+import SchoolAccounts from './school-accounts';
 import DailyCharts from './daily-charts';
+import PosthogSummary from './posthog-summary';
 type Result<T>={data?:T;error?:string};
 type Request={filter:UserSelection;page:number};
 export default function Overview({token,isCurrentToken}:{token:string;isCurrentToken:(token:string)=>boolean}){
  const [days,setDays]=useState<7|30|90>(30);
  const [refresh,setRefresh]=useState(0);
+ const [analyticsRefresh,setAnalyticsRefresh]=useState(0);
  const [now,setNow]=useState(0);
  const [summary,setSummary]=useState<Result<UsageSummary>>({});
  const [selection,setSelection]=useState<UserSelection>({...defaultSelection});
@@ -49,7 +52,7 @@ export default function Overview({token,isCurrentToken}:{token:string;isCurrentT
   document.getElementById('people')?.scrollIntoView({behavior:'smooth',block:'start'});
  }
  return <>
- <div className={s.tools}><Segmented label="Periode" options={[7,30,90] as const} value={days} onChange={setDays} format={v=>`${v} dagen`}/><Button onClick={()=>setRefresh(n=>n+1)}>Vernieuwen</Button></div>
+ <div className={s.tools}><Segmented label="Periode" options={[7,30,90] as const} value={days} onChange={setDays} format={v=>`${v} dagen`}/><Button onClick={()=>{setRefresh(n=>n+1);setAnalyticsRefresh(n=>n+1);}}>Vernieuwen</Button></div>
  {!data?<StateMessage error={summary.error} onRetry={()=>setRefresh(n=>n+1)}>Gebruikersoverzicht laden…</StateMessage>:<>
  {stale&&<Banner tone="warn" role="alert">{summary.error??'De gegevens zijn verouderd.'} De getoonde online-status is niet actueel. Laatste geslaagde meting: {usageDate(data.captured_at)}.</Banner>}
  <Kpis><Kpi label="Leerlingaccounts" value={data.totals.learners} note={<Button onClick={()=>open({kind:'learner'})}>Leerlingen bekijken</Button>}/>
@@ -76,9 +79,8 @@ export default function Overview({token,isCurrentToken}:{token:string;isCurrentT
  })}</tr>)}</tbody></table></div></details>
  <Note>Schoolindeling bij nieuwe leerlingen wordt vastgelegd bij eerste herkenning als leerling. Bij actief gebruik geldt de eerste meting van die dag. Historische indelingen worden niet achteraf ingevuld. De eerste meetdag is gedeeltelijk; ook oudere appversies kunnen ontbreken in de actieve cijfers.</Note>
  </Panel>
- <Panel id="schools" title="Per rijschool" note="Actief gekoppelde leerlingen, uniek binnen iedere school. Een leerling bij twee scholen telt in het totaal één keer.">
- <div className={s.scroll}><table className={s.table}><thead><tr><th scope="col">Rijschool</th><th scope="col">Leerlingen</th><th scope="col">Leerlingen online</th><th scope="col">Rijschoolgebruikers online</th></tr></thead><tbody>{data.schools.map(school=><tr key={school.id}><th scope="row"><Link href={`/support/${school.id}`}>{school.name}</Link></th><td><Button onClick={()=>open({school_id:school.id,cohort:'with_school'})}>{school.learners}</Button></td><td><Button disabled={stale} onClick={()=>open({school_id:school.id,presence:'online'})}>{stale?'—':school.online_learners}</Button></td><td><Button disabled={stale} onClick={()=>open({kind:'school',school_id:school.id,presence:'online'})}>{stale?'—':school.online_school_users}</Button></td></tr>)}</tbody></table></div>
- </Panel>
+ <PosthogSummary token={token} isCurrentToken={isCurrentToken} days={days} refreshTrigger={analyticsRefresh}/>
+ <SchoolAccounts token={token} isCurrentToken={isCurrentToken} refreshTrigger={refresh}/>
  <Panel id="people" title="Personen bekijken" note="Namen en e-mailadressen worden pas na openen opgehaald. Elke inzage wordt automatisch vastgelegd.">
  <form className={s.filters} onSubmit={event=>{event.preventDefault();setList(null);setRequest({filter:{...selection,query:selection.query.trim()},page:0});}}>
  <label className={k.field}>Gebruikers<select value={selection.kind} onChange={e=>setSelection({...selection,kind:e.target.value as UserSelection['kind']})}><option value="all">Alle rollen</option>{Object.entries(kindLabels).map(([v,label])=><option key={v} value={v}>{label}</option>)}</select></label>
@@ -105,7 +107,7 @@ export default function Overview({token,isCurrentToken}:{token:string;isCurrentT
  </>}
  </>}
  </Panel>
- <Explainer><p>Actief betekent dat de app op de voorgrond is bevestigd, ook als iemand alleen leest. Een login of activatielink telt hier niet als appgebruik. Actieve cijfers starten op {usageDate(data.measured_since)}; ontbrekende metingen bewijzen geen inactiviteit.</p><p>Nieuwe accounts zijn geen downloads. Verwijderde accounts verdwijnen ook uit de historische cijfers. Bekende testaccounts, platformmedewerkers en uitsluitend interne scholen zijn uitgesloten volgens het bestaande leerlingcontract. Nog onbekende tests kunnen meetellen.</p><p>Een schoolkoppeling die later verandert, verandert de opgeslagen dagindeling niet. De personenlijst toont daarnaast de huidige schoolrelaties. Appversies zijn laatst gemelde versies, geen bewijs dat een update geïnstalleerd is op alle toestellen.</p><p>Gegevens worden iedere 30 seconden ververst zolang deze pagina zichtbaar is. Zonder actuele meting is de online-status onbekend of verouderd.</p></Explainer>
+ <Explainer><p>Actief betekent dat de app op de voorgrond is bevestigd, ook als iemand alleen leest. Een login of activatielink telt hier niet als appgebruik. Actieve cijfers starten op {usageDate(data.measured_since)}; ontbrekende metingen bewijzen geen inactiviteit.</p><p>Nieuwe accounts zijn geen downloads. Verwijderde accounts verdwijnen ook uit de historische cijfers. Bekende testaccounts, platformmedewerkers en uitsluitend interne scholen zijn uitgesloten volgens het bestaande leerlingcontract. Nog onbekende tests kunnen meetellen.</p><p>Een schoolkoppeling die later verandert, verandert de opgeslagen dagindeling niet. De personenlijst toont daarnaast de huidige schoolrelaties. Appversies zijn laatst gemelde versies, geen bewijs dat een update geïnstalleerd is op alle toestellen.</p><p>Account- en schoolgegevens worden iedere 30 seconden ververst zolang deze pagina zichtbaar is. PostHog wordt geladen bij openen, periodewijziging of handmatig vernieuwen. Zonder actuele meting is de online-status onbekend of verouderd.</p></Explainer>
  <Footer>Bijgewerkt: {usageDate(data.captured_at)} · Meting gestart: {usageDate(data.measured_since)} · Alle tijden Europe/Amsterdam.</Footer>
  </>}
  </>;
