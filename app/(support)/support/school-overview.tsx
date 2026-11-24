@@ -38,7 +38,7 @@ export default function SchoolOverview({ scholen, fout, toonIntern, onToonIntern
       <button className={styles.quietButton} onClick={onUitloggen}>Uitloggen <span aria-hidden="true">↗</span></button>
     </header>
     <Page>
-      <PageHeader eyebrow="Ribba voor rijscholen · interne omgeving" title="Rijscholen." subtitle="Vind een rijschool en help de klant verder." />
+      <PageHeader eyebrow="Ribba voor rijscholen · interne omgeving" title="Rijscholen." subtitle="Vind een rijschool en help de klant verder. Leerlingkaarten kunnen ook leerlingen zonder loginaccount bevatten." />
       <Kpis columns={3}>
         <Kpi label="Rijscholen" value={scholen.length} note={toonIntern ? 'Inclusief testscholen' : 'Exclusief testscholen'} />
         <Kpi label="Lesklaar" value={scholen.length - setup} tone="ok" note="Minstens één ingeschakeld lestype" />
@@ -56,11 +56,11 @@ export default function SchoolOverview({ scholen, fout, toonIntern, onToonIntern
           {visible.map(school => <li className={local.school} key={school.school_id}>
             <div className={local.main}>
               <div className={local.identity}><span className={local.avatar} aria-hidden="true">{school.school_name.replace(/^\[[^\]]+\]\s*/, '').replace(/^rijschool\s+/i, '').slice(0, 1).toUpperCase()}</span><div><Link href={`/support/${school.school_id}`} className={local.name}>{school.school_name} <span aria-hidden="true">↗</span></Link><p>{school.city ?? 'Plaats niet ingevuld'}{school.is_internal && <Pill tone="info">Testschool</Pill>}</p></div></div>
-              <div className={local.metric}><span>Leerlingen</span><strong>{school.leerlingen}</strong></div>
-              <div className={local.metric}><span>Laatst actief</span><strong>{lastActive(school.laatste_activiteit)}</strong></div>
+              <div className={local.metric}><span>Leerlingkaarten</span><strong>{school.leerlingen}</strong></div>
+              <div className={local.metric}><span>Laatste sessie of lesregistratie</span><strong>{lastActive(school.laatste_activiteit)}</strong></div>
               <div className={local.status}><Pill tone={school.onboarding_gereed ? 'ok' : 'warn'}>{school.onboarding_gereed ? 'Lesklaar' : 'Lestype nodig'}</Pill><small>{subscription[school.abonnement_status ?? ''] ?? school.abonnement_status ?? 'Geen abonnementstatus'}</small></div>
             </div>
-            <details className={local.extra}><summary>Meer gegevens</summary><dl className={kit.facts}><div><dt>Ingeschreven</dt><dd>{date(school.created_at)}</dd></div><div><dt>Leerlingen</dt><dd>{school.leerlingen}</dd></div><div><dt>Instructeurs</dt><dd>{school.instructeurs}</dd></div><div><dt>Lestypes</dt><dd>{school.lestypes}</dd></div><div><dt>Beschikbaarheid</dt><dd>{school.beschikbaarheid}</dd></div><div><dt>Lessen</dt><dd>{school.lessen}</dd></div><div><dt>CBR-koppeling</dt><dd>{school.cbr_koppeling ?? 'Niet ingericht'}</dd></div></dl></details>
+            <details className={local.extra}><summary>Meer gegevens</summary><dl className={kit.facts}><div><dt>Ingeschreven</dt><dd>{date(school.created_at)}</dd></div><div><dt>Leerlingkaarten</dt><dd>{school.leerlingen}</dd></div><div><dt>Instructeurs</dt><dd>{school.instructeurs}</dd></div><div><dt>Lestypes</dt><dd>{school.lestypes}</dd></div><div><dt>Beschikbaarheid</dt><dd>{school.beschikbaarheid}</dd></div><div><dt>Lessen</dt><dd>{school.lessen}</dd></div><div><dt>CBR-koppeling</dt><dd>{school.cbr_koppeling ?? 'Niet ingericht'}</dd></div></dl></details>
           </li>)}
         </ul>
         {visible.length === 0 && !fout && <><Empty>{search || filter !== 'all' ? 'Geen rijscholen gevonden. Probeer een andere zoekterm of toon alle rijscholen.' : 'Er zijn geen rijscholen om te tonen.'}</Empty>{(search || filter !== 'all') && <Button onClick={() => { setSearch(''); setFilter('all'); }}>Zoekopdracht wissen</Button>}</>}

@@ -5,7 +5,7 @@ import {marketingLabels} from '@/lib/learner-marketing';
 import Link from 'next/link';
 import {useSupportToken} from '../../client';
 import {learnerFilters,learnerFilterLabels,zelfAangemeldUitleg,type LearnerFilter,type LearnerList,type LearnerSummary} from '@/lib/owner-learners';
-import {Button,Empty,Explainer,Footer,Grid,Kpi,Kpis,Note,Page,PageHeader,Panel,Pill,StateMessage} from '../../ui/kit';
+import {Button,Empty,Explainer,Footer,Kpi,Kpis,Note,Page,PageHeader,Panel,Pill,StateMessage} from '../../ui/kit';
 import k from '../../ui/kit.module.css';
 import local from './learners.module.css';
 const date=(value:string|null)=>value?new Date(value).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short'}):'Nog niet ingelogd';
@@ -13,7 +13,7 @@ const date=(value:string|null)=>value?new Date(value).toLocaleString('nl-NL',{da
 export default function LearnersPage(){
  const {token,status,isCurrentToken}=useSupportToken();
  return <Page><div>
-  <PageHeader eyebrow="Ribba · alleen eigenaar" title="Leerlingen." subtitle="Van account naar een rijschool. Zie waar leerlingen staan en waar hulp nodig kan zijn."/>
+  <PageHeader eyebrow="Ribba · alleen eigenaar" title="Leerlinghulp en toestemming." subtitle="Help bij een onvolledig profiel, zoek een leerlingkaart en bekijk toestemming voor e-mail."/>
   {token?<AuthenticatedLearners token={token} isCurrentToken={isCurrentToken}/>:status==='laden'?<p role="status">Sessie controleren…</p>:<SignedOut/>}
  </div></Page>;
 }
@@ -25,7 +25,7 @@ function SignedOut(){
 function AuthenticatedLearners({token,isCurrentToken}:{token:string;isCurrentToken:(token:string)=>boolean}){
  const [attempt,retry]=useState(0);
  const [summary,setSummary]=useState<{token:string;data?:LearnerSummary;error?:string}|null>(null);
- const [filter,setFilter]=useState<LearnerFilter>('without_active');
+ const [filter,setFilter]=useState<LearnerFilter>('never_signed_in');
  const [query,setQuery]=useState('');
  const [request,setRequest]=useState<{token:string;filter:LearnerFilter;query:string;page:number}|null>(null);
  const [list,setList]=useState<{request:typeof request;data?:LearnerList;error?:string}|null>(null);
@@ -49,23 +49,14 @@ function AuthenticatedLearners({token,isCurrentToken}:{token:string;isCurrentTok
  const current=request?.token===token&&list?.request===request?list:null;
  const data=visible?.data;const rows=current?.data;
  const loading=!!request&&request.token===token&&!current;
- const maxDag=data?Math.max(1,...data.trend.map(t=>t.accounts)):1;
  return <>{!data?<StateMessage error={visible?.error} onRetry={()=>retry(n=>n+1)}>Leerlingmetingen laden…</StateMessage>:<>
    <Kpis>
-    <Kpi label="Nieuwe accounts · 30 dagen" value={data.metrics.new_30} delta={{value:data.metrics.new_30-data.metrics.previous_new_30,suffix:'t.o.v. 30 dagen daarvoor'}}/>
-    <Kpi label="Zonder actieve rijschool" value={data.metrics.without_active_school} tone={data.metrics.without_active_school>0?'warn':undefined} note={`${data.metrics.no_school} zonder schoolkoppeling · ${data.metrics.waitlist} op de wachtlijst`}/>
+    <Kpi label="Onvolledig profiel zonder school" value={data.metrics.incomplete_without_school} note="Zelfstandig profiel nog niet volledig ingevuld"/>
     <Kpi label="Nog niet ingelogd" value={data.metrics.never_signed_in} note="Account bestaat, nog geen login geregistreerd"/>
     <Kpi label="Zelf aangemeld · zonder uitnodiging" value={data.metrics.registration_hint} note={zelfAangemeldUitleg(data.metrics)}/>
    </Kpis>
-   <Grid>
-    <Panel id="growth-title" title="Registraties · laatste 30 dagen" note={`${data.metrics.accounts} leerlingaccounts · ${data.metrics.signed_in_30} met een login in de laatste 30 dagen`}>
-     <div className={local.chart} role="img" aria-label={`Registraties per dag; totaal ${data.trend.reduce((sum,d)=>sum+d.accounts,0)} op deze 30 kalenderdagen. De exacte aantallen staan onder Dagcijfers.`}>{data.trend.map(d=><div key={d.day} title={`${d.day}: ${d.accounts}`} style={{height:`${Math.max(3,d.accounts/maxDag*100)}%`,opacity:d.accounts?1:.25}}/>)}</div>
-     <Note>{data.metrics.incomplete_without_school} zonder actieve school hebben nog een onvolledig zelfstandig profiel.</Note>
-     <Explainer title="Dagcijfers bekijken"><div className={local.days}>{data.trend.map(d=><span key={d.day}>{d.day}: <b>{d.accounts}</b></span>)}</div></Explainer>
-    </Panel>
-    <MarketingOverview token={token} isCurrentToken={isCurrentToken}/>
-   </Grid>
-   <Panel id="list-title" title="Leerlingenlijst" note="Naam en e-mailadres zijn persoonsgegevens; elke inzage wordt automatisch vastgelegd. Klik op een naam voor de leerlingkaart.">
+   <MarketingOverview token={token} isCurrentToken={isCurrentToken}/>
+   <Panel id="list-title" title="Leerlingkaart zoeken" note="Naam en e-mailadres zijn persoonsgegevens; elke inzage wordt automatisch vastgelegd. Klik op een naam voor de leerlingkaart.">
     <form className={k.form} onSubmit={e=>{e.preventDefault();if(token)setRequest({token,filter,query:query.trim(),page:0});}}>
      <label className={k.field}>Toon<select value={filter} onChange={e=>setFilter(e.target.value as LearnerFilter)}>{learnerFilters.map(f=><option key={f} value={f}>{learnerFilterLabels[f]}</option>)}</select></label>
      <label className={k.field}>Zoek op naam of e-mailadres (optioneel)<input value={query} onChange={e=>setQuery(e.target.value)} maxLength={100} autoComplete="off"/></label>

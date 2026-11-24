@@ -69,8 +69,8 @@ export default function Overview({token,isCurrentToken}:{token:string;isCurrentT
  {!data.online_by_kind.length&&<Empty>{stale?'Geen actuele meting beschikbaar.':'Niemand online gemeten.'}</Empty>}
  <Note>Online: app op de voorgrond, binnen 90 seconden bevestigd. Bij verbindingsverlies kan de status tot 90 seconden achterlopen.</Note>
  </Panel><Panel id="versions" title="Appversies" note="Laatst gemelde versie per gebruiker. Rijschoolgebruikers en leerlingen apart; geen meting = onbekend.">
- <Rows>{data.versions.map((v,i)=><Row key={i} title={`${v.app_version??'Onbekende appversie'} · ${v.platform??'platform onbekend'}`} sub={`${kindLabels[v.kind]} · OTA ${v.ota_id??'onbekend'}`} meta={`${v.users} gebruikers`}/>)}</Rows>
- {!data.versions.length&&<Empty>Nog geen gebruikers beschikbaar.</Empty>}
+ <details><summary>Appversies per rol en toestel bekijken</summary><Rows>{data.versions.map((v,i)=><Row key={i} title={`${v.app_version??'Onbekende appversie'} · ${v.platform??'platform onbekend'}`} sub={`${kindLabels[v.kind]} · OTA ${v.ota_id??'onbekend'}`} meta={`${v.users} gebruikers`}/>)}</Rows>
+ {!data.versions.length&&<Empty>Nog geen gebruikers beschikbaar.</Empty>}</details>
  </Panel></Grid>
  <Panel id="daily" title="Dagelijks nieuwe en actieve gebruikers" note="Nederlandse kalenderdagen. Klik op een aantal om de bijbehorende personen te zien; het overzicht zelf bevat geen namen.">
  <div className={s.chart} role="img" aria-label="Dagelijks actieve leerlingen; exacte aantallen in de tabel">{[...data.days].reverse().map(d=><div key={d.day} title={`${d.day}: ${d.measured?d.active_with_school+d.active_without_school:'nog niet gemeten'}`} style={{height:`${d.measured?Math.max(2,(d.active_with_school+d.active_without_school)/max*100):2}%`}}/>)}</div>
