@@ -12,7 +12,7 @@ export default function DashboardView({data,error,collecting,unauthorized,days,o
 }){
  const olderInsight=!!(insight&&data&&(Date.parse(insight.snapshot_at)!==Date.parse(data.captured_at)||(insight.result.evidence?.days!==undefined&&insight.result.evidence.days!==days)));
  return <Page>
-  <PageHeader eyebrow="Ribba · beheer" title="Overzicht." subtitle="Hoe Ribba groeit, en welke rijscholen vandaag je aandacht nodig hebben."
+  <PageHeader eyebrow="Ribba · beheer" title="Rijschoolontwikkeling." subtitle="Volg de ontwikkeling van rijscholen en zie welke school aandacht nodig heeft."
    actions={<Segmented label="Periode" options={PERIODES} value={days} onChange={onDays} format={n=>`${n} dagen`}/>}/>
   {unauthorized?<p><Link href="/support">Log opnieuw in met tweefactor om verder te gaan.</Link></p>
   :error?<StateMessage error={error} onRetry={onRetry}/>
@@ -59,7 +59,7 @@ export default function DashboardView({data,error,collecting,unauthorized,days,o
    </Grid>
    <div className={styles.tiles}>
     <LinkTile href="/support/dashboard/inschrijvingen" title="Inschrijvingen" sub="Wie schreef zich in, wie betaalt"/>
-    <LinkTile href="/support/dashboard/journey" title="Appmetingen" sub="Wizard en pakketaanmaak"/>
+    <LinkTile href="/support/dashboard/journey" title="Hulpvragen" sub="Ondersteuning vastleggen en opvolgen"/>
    </div>
    <Footer>Bijgewerkt: {format(data.captured_at)}, Nederlandse tijd. Testscholen uitgesloten. Definitie v{data.definition_version}.</Footer>
    <Explainer title="Wat meten we en wat bewaren we?">

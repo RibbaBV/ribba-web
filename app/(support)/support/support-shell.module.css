@@ -13,3 +13,5 @@
 .shell [data-support-local-navigation]{display:none}
 .shell [data-support-overview-actions]>:not(button){display:none}
 .shell [data-support-overview-actions]{justify-content:flex-end;background:transparent;border:0;padding-bottom:0}
+
+.sections{display:flex;flex-wrap:wrap;gap:8px;padding:20px 32px 0}.sections a{color:var(--support-muted);padding:9px 12px;border:1px solid var(--support-line);border-radius:10px;text-decoration:none;font-size:13px}.sections a[aria-current]{color:var(--support-text);background:var(--support-surface);font-weight:650}.sections a:hover{color:white;border-color:#3263a2}@media(max-width:650px){.sections{padding:16px 20px 0;gap:6px}.sections a{font-size:12px;padding:8px 10px}}

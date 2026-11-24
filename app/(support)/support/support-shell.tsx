@@ -50,6 +50,16 @@ export default function SupportShell({ children }: { children: React.ReactNode }
 
 /** Render shared support navigation, exposing owner dashboard links only for the verified owner. */
 export function SupportFrame({ owner, path, dirty, children }: { owner: boolean; path: string; dirty: boolean; children: React.ReactNode }) {
+  const userSection = path.startsWith('/support/dashboard/gebruikers') || path.startsWith('/support/dashboard/learners');
+  const schoolSection = path === '/support/dashboard' || path.startsWith('/support/dashboard/inschrijvingen') || (!path.startsWith('/support/dashboard') && !path.startsWith('/support/gebruik'));
+  const sections = userSection ? [
+    ['/support/dashboard/gebruikers', 'Gebruik en aantallen'],
+    ['/support/dashboard/learners', 'Leerlinghulp en toestemming'],
+  ] : schoolSection ? [
+    ['/support', 'Rijscholen zoeken'],
+    ['/support/dashboard', 'Ontwikkeling en aandachtspunten'],
+    ['/support/dashboard/inschrijvingen', 'Aanmeldingen en abonnementen'],
+  ] : [];
   return (
     <div className={owner ? styles.shell : undefined} onClickCapture={event => {
         const link = (event.target as HTMLElement).closest('a');
@@ -61,20 +71,20 @@ export function SupportFrame({ owner, path, dirty, children }: { owner: boolean;
         }
       }}>
       {owner && <aside className={styles.sidebar}>
-        <Link className={styles.brand} href="/support/dashboard" aria-label="Ribba dashboard"><RibbaLogo height={25} /></Link>
+        <Link className={styles.brand} href="/support/dashboard/gebruikers" aria-label="Ribba gebruikersoverzicht"><RibbaLogo height={25} /></Link>
         <nav className={styles.nav} aria-label="Beheer">
-          <Link href="/support/dashboard" aria-current={path === '/support/dashboard' ? 'page' : undefined}>Overzicht</Link>
-          <Link href="/support/dashboard/inschrijvingen" aria-current={path.startsWith('/support/dashboard/inschrijvingen') ? 'page' : undefined}>Inschrijvingen</Link>
-          <Link href="/support/dashboard/journey" aria-current={path.startsWith('/support/dashboard/journey') ? 'page' : undefined}>Klantreis en support</Link>
-          <Link href="/support/dashboard/gebruikers" aria-current={path.startsWith('/support/dashboard/gebruikers') ? 'page' : undefined}>Gebruikers</Link>
-          <Link href="/support/dashboard/learners" aria-current={path.startsWith('/support/dashboard/learners') ? 'page' : undefined}>Leerlingen</Link>
+          <Link href="/support/dashboard/gebruikers" aria-current={userSection ? 'page' : undefined}>Gebruikers</Link>
+          <Link href="/support" aria-current={schoolSection ? 'page' : undefined}>Rijscholen</Link>
+          <Link href="/support/dashboard/journey" aria-current={path.startsWith('/support/dashboard/journey') ? 'page' : undefined}>Hulpvragen</Link>
+          <Link href="/support/gebruik" aria-current={path.startsWith('/support/gebruik') ? 'page' : undefined}>Groei</Link>
           <Link href="/support/dashboard/tegoed" aria-current={path.startsWith('/support/dashboard/tegoed') ? 'page' : undefined}>Tegoed</Link>
-          <Link href="/support/gebruik" aria-current={path.startsWith('/support/gebruik') ? 'page' : undefined}>Conversies en groei</Link>
-          <Link href="/support" aria-current={!path.startsWith('/support/dashboard') && !path.startsWith('/support/gebruik') ? 'page' : undefined}>Rijscholen</Link>
         </nav>
         <span className={styles.owner}>Alleen eigenaar</span>
       </aside>}
-      <div className={styles.content}>{children}</div>
+      <div className={styles.content}>
+        {owner && sections.length > 0 && <nav className={styles.sections} aria-label={userSection ? 'Binnen gebruikers' : 'Binnen rijscholen'}>{sections.map(([href,label]) => <Link key={href} href={href} aria-current={path === href || (href === '/support' && schoolSection && !path.startsWith('/support/dashboard')) || (href.endsWith('/learners') && path.startsWith(href+'/')) ? 'page' : undefined}>{label}</Link>)}</nav>}
+        {children}
+      </div>
     </div>
   );
 }

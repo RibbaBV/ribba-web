@@ -19,7 +19,7 @@ import local from './gebruik.module.css';
 export default function GebruikPage() {
   const { token, status, isCurrentToken } = useSupportToken();
   return <Page>
-    <PageHeader eyebrow="Ribba · support" title="Conversies en groei." subtitle="Van eerste gebruik naar terugkeer, doorverwijzing en betaling. Dagelijkse PIRAAT-trends, met een teller, noemer en eerlijke meetdekking." />
+    <PageHeader eyebrow="Ribba · support" title="Groei en conversie." subtitle="Onderzoek waar gebruikers afhaken en of ze terugkomen. Voor aantallen, nieuwe accounts en online-status ga je naar Gebruikers." />
     {token ? <><ConversieDashboard token={token} isCurrentToken={isCurrentToken} /><details className={`${kit.panel} ${local.raw}`}><summary>Ruwe appgebruikcijfers bekijken</summary><Gebruik token={token} isCurrentToken={isCurrentToken} /></details></>
       : status === 'laden' ? <p role="status">Sessie controleren…</p>
       : <div className={kit.state}><p>Je supportsessie is verlopen of je bent niet ingelogd. Log in met je supportaccount en tweefactor om dit overzicht te openen.</p><Link href="/support" className={styles.quietButton}>Inloggen</Link></div>}
