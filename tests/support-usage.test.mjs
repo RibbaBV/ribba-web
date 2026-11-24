@@ -45,3 +45,19 @@ test('invalid input and unavailable backend never return fabricated zero counts 
  setup();assert.equal((await POST(req({filter:{...defaultSelection,metric:'active',day:'2026-02-30'},page:0}))).status,400);assert.equal(reads().length,0);
  setup({rpcError:{message:'secret'}});const r=await GET(req());assert.equal(r.status,503);assert.ok(!JSON.stringify(r.body).includes('secret'));
 });
+const schoolRoutes=await import('../app/api/support/school-accounts/route.ts');
+const posthogRoutes=await import('../app/api/support/posthog/route.ts');
+test('new school and PostHog endpoints preserve owner MFA and audit gates',async()=>{
+ for(const route of [schoolRoutes.GET,schoolRoutes.POST,posthogRoutes.GET]){
+  for(const [o,token,status] of [[{},null,401],[{},jwt('aal1'),403],[{owner:false},jwt(),403],[{logError:{message:'failed'}},jwt(),503]]){
+   setup(o);const r=await route(req(undefined,token));assert.equal(r.status,status);assert.equal(reads().length,0);
+  }
+ }
+});
+test('school card request validates filters and forwards only the verified actor',async()=>{
+ setup();assert.equal((await schoolRoutes.POST(req({school:'bad',link:'all',status:'all',page:0}))).status,400);
+ assert.equal(reads().length,0);
+ setup();const body={school:'06771be4-6019-4e52-bc82-64528166123d',link:'unlinked',status:'graduated',page:0};
+ assert.equal((await schoolRoutes.POST(req(body))).status,200);
+ assert.deepEqual(reads(),[{name:'owner_support_school_cards',args:{p_actor:'verified-owner',p_school:body.school,p_link:'unlinked',p_status:'graduated',p_page:0}}]);
+});
