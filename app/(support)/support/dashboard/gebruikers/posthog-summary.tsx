@@ -2,10 +2,10 @@
 import {useEffect,useState} from 'react';
 import {Panel,Button,Note,Kpis,Kpi,Funnel,Explainer} from '../../ui/kit';
 type Data={status:'ready'|'not_configured';rows:{event:string;label:string;occurrences:number;identities:number}[]};
-export default function PosthogSummary({token,isCurrentToken,days}:{token:string;isCurrentToken:(token:string)=>boolean;days:7|30|90}){
+export default function PosthogSummary({token,isCurrentToken,days,refreshTrigger}:{refreshTrigger:number;token:string;isCurrentToken:(token:string)=>boolean;days:7|30|90}){
  const [refresh,setRefresh]=useState(0);
  const [result,setResult]=useState<{key:string;data?:Data;error?:string}>();
- const key=`${token}:${days}:${refresh}`;
+ const key=`${token}:${days}:${refresh}:${refreshTrigger}`;
  useEffect(()=>{
   const controller=new AbortController();
   void fetch(`/api/support/posthog?days=${days}`,{headers:{Authorization:`Bearer ${token}`},signal:controller.signal,cache:'no-store'})
